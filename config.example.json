@@ -1,0 +1,40 @@
+{
+  "mode": "passthrough",
+  "backends": {
+    "local": "http://localhost:8001",
+    "coder": "http://localhost:8002",
+    "anthropic": "https://api.anthropic.com"
+  },
+  "defaultBackend": "local",
+  "logging": {
+    "level": "info",
+    "includeBody": true,
+    "maxBodyLength": 10000
+  },
+  "smartRouter": {
+    "enabled": true,
+    "classifierBackend": "local",
+    "historyFile": "/config/router-history.json",
+    "backends": {
+      "local": {
+        "name": "Local General Model",
+        "specialties": ["general", "conversation", "creative"],
+        "contextWindow": 32768,
+        "speed": "fast"
+      },
+      "coder": {
+        "name": "Code Specialist",
+        "specialties": ["code", "programming", "debugging", "technical"],
+        "contextWindow": 16384,
+        "speed": "fast"
+      },
+      "anthropic": {
+        "name": "Claude (Anthropic)",
+        "specialties": ["complex", "nuanced", "expert", "analysis", "long-context"],
+        "contextWindow": 200000,
+        "speed": "medium",
+        "cost": "paid"
+      }
+    }
+  }
+}

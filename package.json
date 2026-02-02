@@ -1,0 +1,29 @@
+{
+  "name": "llm-gateway",
+  "version": "1.0.0",
+  "description": "Intelligent LLM routing proxy with multi-backend support, format conversion, and smart routing",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "llm",
+    "proxy",
+    "gateway",
+    "openai",
+    "anthropic",
+    "claude",
+    "router",
+    "ai"
+  ],
+  "author": "apellegr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apellegr/llm-gateway.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

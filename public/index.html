@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Debug Proxy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/dashboard/dashboard.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-icon">🔮</div>
+        <h1>LLM Debug Proxy</h1>
+      </div>
+      <span class="version">v2.0</span>
+    </div>
+    <div class="header-right">
+      <div class="status-indicators">
+        <span id="smart-routing-badge" class="badge">Smart Routing: --</span>
+        <span id="backend-badge" class="badge badge-primary">Backend: --</span>
+      </div>
+      <span id="last-updated" class="last-updated">--</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Overview Panel -->
+    <section class="panel overview-panel">
+      <h2>Overview</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">📊</div>
+          <div class="stat-value" id="total-requests">--</div>
+          <div class="stat-label">Total Requests</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-value" id="success-rate">--%</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-value" id="avg-latency">--ms</div>
+          <div class="stat-label">Avg Latency</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🕐</div>
+          <div class="stat-value" id="requests-hour">--</div>
+          <div class="stat-label">Last Hour</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backend Status -->
+    <section class="panel backends-panel">
+      <h2>Backend Status</h2>
+      <div id="backends-list" class="backends-list">
+        <div class="empty-state">
+          <div class="loading"></div>
+          <p>Loading backends...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="panel controls-panel">
+      <h2>Controls</h2>
+      <div class="controls-grid">
+        <div class="control-group">
+          <label>Default Backend</label>
+          <div class="control-row">
+            <select id="backend-select">
+              <option value="secretary">Secretary</option>
+              <option value="archivist">Archivist</option>
+              <option value="concierge">Concierge</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+            <button id="switch-backend-btn" class="btn btn-primary">⚡ Switch</button>
+          </div>
+        </div>
+        <div class="control-group">
+          <label>Smart Routing</label>
+          <button id="toggle-smart-btn" class="btn btn-success">🧠 Toggle</button>
+        </div>
+        <div class="control-group">
+          <label>History</label>
+          <button id="clear-logs-btn" class="btn btn-danger">🗑️ Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Conversation Tracker -->
+    <section class="panel conversations-panel">
+      <h2>Recent Requests</h2>
+      <div class="filters">
+        <select id="filter-backend">
+          <option value="">All Backends</option>
+          <option value="secretary">Secretary</option>
+          <option value="archivist">Archivist</option>
+          <option value="concierge">Concierge</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="proxy-cli">Proxy CLI</option>
+        </select>
+        <select id="filter-status">
+          <option value="">All Status</option>
+          <option value="success">✅ Success</option>
+          <option value="error">❌ Error</option>
+        </select>
+        <input type="text" id="search-input" placeholder="🔍 Search content...">
+        <button id="refresh-btn" class="btn">🔄 Refresh</button>
+      </div>
+      <div id="conversations-list" class="conversations-list">
+        <div class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          <p>No requests yet</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Request Details Modal -->
+    <div id="details-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>📋 Request Details</h3>
+          <button class="modal-close">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="detail-tabs">
+            <button class="tab-btn active" data-tab="request">📤 Request</button>
+            <button class="tab-btn" data-tab="response">📥 Response</button>
+            <button class="tab-btn" data-tab="timing">⏱️ Timing</button>
+            <button class="tab-btn" data-tab="routing">🧭 Routing</button>
+          </div>
+          <div id="tab-request" class="tab-content active">
+            <pre id="detail-request"></pre>
+          </div>
+          <div id="tab-response" class="tab-content">
+            <pre id="detail-response"></pre>
+          </div>
+          <div id="tab-timing" class="tab-content">
+            <pre id="detail-timing"></pre>
+          </div>
+          <div id="tab-routing" class="tab-content">
+            <pre id="detail-routing"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Distribution -->
+    <section class="panel category-panel">
+      <h2>Request Categories</h2>
+      <div id="category-chart" class="category-chart">
+        <div class="empty-state">
+          <p>No category data</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backend Performance -->
+    <section class="panel performance-panel">
+      <h2>Backend Performance</h2>
+      <table class="performance-table">
+        <thead>
+          <tr>
+            <th>Backend</th>
+            <th>Requests</th>
+            <th>Success</th>
+            <th>Latency</th>
+            <th>Errors</th>
+          </tr>
+        </thead>
+        <tbody id="performance-tbody">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted)">No data yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand">
+      <span>🔮</span>
+      <span>LLM Debug Proxy Dashboard</span>
+    </div>
+    <div class="refresh-indicator">
+      <span>Auto-refresh in <strong id="refresh-countdown">30</strong>s</span>
+    </div>
+  </footer>
+
+  <script src="/dashboard/dashboard.js"></script>
+</body>
+</html>
