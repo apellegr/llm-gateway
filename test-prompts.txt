@@ -1,0 +1,1016 @@
+# 1000 Sample Personal Assistant Requests
+# Ranging from simple to complex, covering various categories
+
+# === GREETINGS & SIMPLE (1-50) ===
+Hi
+Hello there
+Good morning
+Hey, how's it going?
+What's up?
+Thanks!
+Thank you so much
+Goodbye
+See you later
+Good night
+How are you today?
+What can you help me with?
+Are you there?
+Hello, anyone home?
+Hey buddy
+Yo
+Sup
+Hiya
+Greetings
+What's new?
+How's your day?
+Nice to meet you
+Thanks for the help earlier
+Appreciate it
+Cheers
+Take care
+Talk soon
+Later!
+Bye for now
+Good evening
+Good afternoon
+Morning!
+Evening!
+Hey there
+Hi again
+Back again
+I'm back
+Miss me?
+Ready to help?
+Let's get started
+Okay let's do this
+Alright
+Sure thing
+Got it
+Understood
+Makes sense
+Perfect
+Great
+Awesome
+
+# === WEATHER & REAL-TIME (51-120) ===
+What's the weather like today?
+What's the weather in New York City?
+Will it rain tomorrow?
+Do I need an umbrella today?
+What's the temperature outside?
+Is it going to snow this weekend?
+Weather forecast for the next week
+What's the weather like in London right now?
+Should I bring a jacket to work today?
+How cold is it in Chicago?
+What's the UV index today?
+Is it humid outside?
+When is sunset today?
+What time does the sun rise tomorrow?
+What's the weather in Tokyo?
+Is it a good day for a picnic?
+Will there be thunderstorms tonight?
+What's the air quality like today?
+Pollen count for today?
+Is it windy outside?
+What's the feels-like temperature?
+Weather in Paris this weekend
+Should I wear shorts or pants today?
+Is it beach weather today?
+What's the weather like in Sydney right now?
+How hot will it get today?
+Is there a heat advisory?
+Wind speed right now?
+What's the humidity percentage?
+Chance of rain today?
+Will it be sunny tomorrow?
+Weather for my trip to Miami next week
+What should I pack for Seattle weather?
+Is it foggy this morning?
+Dew point today?
+Barometric pressure?
+Is there a storm coming?
+Weather alerts for my area?
+What's the weather like in Dubai?
+Temperature in Celsius please
+Should I water my plants today?
+Is it too cold to go running?
+What's the weather like at the beach?
+Mountain weather forecast
+Ski conditions this weekend?
+Best time to go outside today?
+Is it sweater weather?
+What's the overnight low?
+Daytime high temperature?
+Extended forecast for next 10 days
+Weather comparison: NYC vs LA today
+Is it raining in Seattle? (trick question, probably yes)
+What's the dewpoint?
+Heat index today?
+Wind chill factor?
+Visibility conditions?
+Is it clear skies tonight for stargazing?
+Moon phase tonight?
+When's the next full moon?
+Sunrise and sunset times for this week
+Golden hour for photography today?
+Weather in multiple cities: London, Paris, Rome
+What should I wear for 45 degree weather?
+Is it jacket weather or coat weather?
+Pool weather today?
+Can I leave my windows open tonight?
+Will my flight be delayed due to weather?
+Weather at JFK airport
+Turbulence forecast for flying today
+
+# === CURRENT EVENTS & NEWS (121-200) ===
+What's happening in the news today?
+Latest headlines
+Any breaking news?
+What's going on in the world?
+Top stories right now
+News about the stock market
+What happened in sports yesterday?
+Latest tech news
+Science news this week
+Political news summary
+Business news today
+Entertainment news
+Celebrity gossip
+Movie news and releases
+Music industry news
+Gaming news
+Cryptocurrency news
+Climate change news
+Space exploration updates
+Medical research breakthroughs
+What's trending on social media?
+Viral stories today
+News from Europe
+What's happening in Asia?
+Middle East news summary
+Africa news updates
+Latin America news
+Australia news
+Canada news today
+UK news headlines
+News about AI and technology
+Electric vehicle news
+Renewable energy news
+Housing market news
+Job market updates
+Inflation news
+Federal Reserve news
+Interest rate updates
+Economic news summary
+Trade news
+Supply chain updates
+Shipping industry news
+Airline industry news
+Travel news and advisories
+Hotel industry news
+Restaurant industry news
+Retail news
+E-commerce news
+Amazon news
+Apple news
+Google news
+Microsoft news
+Tesla news
+SpaceX updates
+NASA news
+Weather disasters news
+Natural disaster updates
+Earthquake news
+Hurricane updates
+Wildfire news
+Flood news
+Pandemic updates
+Health news
+FDA news
+Drug approval news
+Medical device news
+Hospital news
+Healthcare policy news
+Education news
+University news
+K-12 education news
+Student loan news
+Real estate news
+Construction industry news
+Architecture news
+Design news
+Fashion news
+Art world news
+Museum news
+Theater news
+Broadway news
+
+# === PRICES & FINANCIAL (201-280) ===
+What's the price of gold?
+Current silver price
+Bitcoin price right now
+Ethereum price
+Stock price of Apple
+How's the S&P 500 doing?
+Dow Jones today
+NASDAQ performance
+Tesla stock price
+Amazon stock price
+Google stock price
+Microsoft stock price
+What's the price of oil?
+Gas prices near me
+Natural gas prices
+Wheat commodity price
+Corn prices
+Soybean prices
+Coffee commodity price
+Sugar prices
+Cotton prices
+Lumber prices
+Copper prices
+What's my portfolio worth?
+Best savings account rates
+CD rates today
+Mortgage rates
+30-year fixed rate
+15-year mortgage rate
+Auto loan rates
+Personal loan rates
+Credit card interest rates
+Inflation rate
+Consumer Price Index
+Producer Price Index
+Unemployment rate
+GDP growth rate
+Exchange rate USD to EUR
+USD to GBP exchange rate
+USD to JPY
+USD to CAD
+How much is 100 euros in dollars?
+Convert 500 British pounds to USD
+What's the Mexican peso rate?
+Swiss franc exchange rate
+Australian dollar rate
+Chinese yuan rate
+Indian rupee exchange rate
+Brazilian real rate
+Cost of living comparison: NYC vs Austin
+Average rent in San Francisco
+Home prices in Denver
+Median home price in my city
+How much does a Tesla Model 3 cost?
+iPhone 15 Pro price
+MacBook Pro pricing
+Average cost of groceries per month
+How much does daycare cost?
+College tuition costs
+Average wedding cost
+Cost of a funeral
+How much to tip at restaurants?
+Average electricity bill
+Water bill average
+Internet service costs
+Cell phone plan prices
+Streaming service costs comparison
+Gym membership average cost
+How much does Netflix cost?
+Spotify premium price
+Amazon Prime cost
+How much is a gallon of milk?
+Egg prices right now
+Chicken prices per pound
+Beef prices
+Avocado prices
+How much does a Big Mac cost?
+
+# === SCHEDULING & ORGANIZATION (281-380) ===
+What's on my calendar today?
+Do I have any meetings tomorrow?
+Schedule a dentist appointment for next Tuesday
+Remind me to call mom at 5pm
+Set an alarm for 7am
+What time is my flight?
+When is my next doctor's appointment?
+Add grocery shopping to my todo list
+What's on my schedule this week?
+Block off Friday afternoon for focus time
+Move my 2pm meeting to 3pm
+Cancel my Thursday appointment
+Reschedule the team meeting to next week
+What do I have going on this weekend?
+Set a reminder for my anniversary
+When is the project deadline?
+Add a recurring reminder for bills on the 1st
+What's my availability next Monday?
+Find a 30-minute slot for a call this week
+When is my next haircut appointment?
+Schedule car maintenance for next month
+Remind me to renew my passport
+Set a reminder to water plants every Sunday
+What meetings do I have with John?
+Block time for gym three times a week
+When is the kids' school play?
+Add birthday reminder for Sarah on March 15
+What's my evening look like?
+Schedule a lunch meeting
+Find time for a 1-hour workout tomorrow
+Set a daily standup reminder at 9:30am
+When does my subscription renew?
+Remind me to submit expense reports Friday
+What's the deadline for taxes?
+Schedule annual physical
+Add vacation days to calendar
+When is the next holiday?
+What's happening this month?
+Review my calendar for conflicts
+Set focus time blocks
+Morning routine reminder at 6am
+Evening wind-down reminder at 9pm
+Meal prep reminder for Sundays
+Schedule date night
+Kids' activities this week?
+What appointments need rescheduling?
+Clear my calendar for Thursday
+Add travel time before meetings
+When should I leave for the airport?
+Meeting prep time 15 minutes before
+Book a conference room
+Schedule one-on-ones with team
+Quarterly review reminder
+Set goals review for end of month
+Annual planning session scheduling
+Weekly review reminder on Fridays
+Monthly budget review reminder
+Schedule car registration renewal
+Remind me about jury duty
+When is the lease renewal?
+HOA meeting on my calendar?
+Community events this week
+Kids' sports schedule
+Piano lesson times
+Tutor session scheduling
+Pet vet appointments
+Grooming appointment for the dog
+House cleaning schedule
+Lawn care reminders
+HVAC maintenance scheduling
+Annual chimney cleaning reminder
+Gutter cleaning reminder
+Pool maintenance schedule
+Snow removal scheduling
+Holiday party planning
+Birthday party planning
+Anniversary planning
+Vacation planning timeline
+Trip itinerary organization
+Packing list reminder before travel
+Passport expiration check
+Visa application timeline
+Hotel check-in times
+Restaurant reservations
+Theater tickets timing
+Concert logistics
+Sports game timing
+What time should I wake up to make my 9am meeting?
+Optimize my calendar
+Batch similar tasks together
+Meeting-free day scheduling
+Deep work time blocks
+Email checking schedule
+Social media time limits
+
+# === CODING & TECHNICAL (381-500) ===
+Write a Python function to reverse a string
+How do I center a div in CSS?
+Explain recursion to me
+What's the difference between let and const in JavaScript?
+Debug this code: it's returning undefined
+How do I connect to a PostgreSQL database in Node.js?
+Write a SQL query to find duplicate records
+What's the time complexity of quicksort?
+Explain Big O notation
+How do I use async/await in JavaScript?
+Write a regex to validate email addresses
+How do I parse JSON in Python?
+What's the difference between GET and POST?
+Explain REST API principles
+How do I handle errors in try/catch?
+Write a function to check if a number is prime
+How do I read a file in Python?
+What's a closure in JavaScript?
+Explain the concept of promises
+How do I use map, filter, and reduce?
+Write a binary search algorithm
+How do I sort an array of objects by property?
+What's the difference between == and === in JavaScript?
+How do I make an HTTP request in Python?
+Explain OAuth 2.0 flow
+How do I hash a password securely?
+What's SQL injection and how to prevent it?
+Write a function to find the nth Fibonacci number
+How do I use environment variables?
+Explain Docker containers vs VMs
+How do I set up a Git repository?
+Write a Dockerfile for a Node.js app
+How do I create a virtual environment in Python?
+What's the difference between npm and yarn?
+How do I deploy to AWS?
+Explain Kubernetes basics
+How do I set up CI/CD?
+Write unit tests for this function
+What's test-driven development?
+How do I mock an API call in tests?
+Explain microservices architecture
+What's the difference between SQL and NoSQL?
+How do I index a database properly?
+Write a cron job expression for every Monday at 9am
+How do I use Redis for caching?
+Explain message queues
+How do I implement rate limiting?
+What's a load balancer?
+How do I scale a web application?
+Explain the CAP theorem
+How do I implement pagination?
+Write a GraphQL query
+How do I use WebSockets?
+Explain server-sent events
+How do I implement authentication with JWT?
+What's CORS and how do I fix CORS errors?
+How do I optimize database queries?
+Explain database normalization
+How do I use TypeScript with React?
+Write a React component with hooks
+How do I manage state in React?
+Explain Redux basics
+What's the Context API in React?
+How do I use React Router?
+Write a custom React hook
+How do I handle forms in React?
+What's server-side rendering?
+Explain static site generation
+How do I use Next.js?
+What's the difference between CSR and SSR?
+How do I optimize images for web?
+Explain lazy loading
+How do I implement infinite scroll?
+Write a debounce function
+What's throttling vs debouncing?
+How do I handle memory leaks?
+Explain garbage collection
+How do I profile JavaScript performance?
+What are Web Workers?
+How do I use Service Workers?
+Explain Progressive Web Apps
+How do I make a website accessible?
+What are ARIA attributes?
+How do I test for accessibility?
+Explain semantic HTML
+How do I improve SEO?
+What are meta tags for?
+How do I implement dark mode?
+Write CSS for a responsive navbar
+How do I use CSS Grid?
+Explain Flexbox layout
+What's the CSS box model?
+How do I animate with CSS?
+What are CSS custom properties?
+How do I use Sass/SCSS?
+Explain CSS-in-JS
+How do I use Tailwind CSS?
+Write a media query for mobile
+How do I handle touch events?
+What's the difference between cookies and localStorage?
+How do I implement drag and drop?
+Explain the DOM and virtual DOM
+How do I optimize React rendering?
+What's React.memo for?
+How do I use useMemo and useCallback?
+Explain code splitting
+How do I reduce bundle size?
+What's tree shaking?
+How do I set up webpack?
+Explain module bundlers
+How do I use Vite?
+What's the difference between CommonJS and ES modules?
+How do I publish an npm package?
+Write a GitHub Actions workflow
+How do I set up ESLint?
+Explain Prettier configuration
+How do I use Git hooks with Husky?
+What's semantic versioning?
+How do I write a good README?
+Explain API documentation with OpenAPI
+
+# === RESEARCH & KNOWLEDGE (501-600) ===
+Who invented the telephone?
+What year did World War 2 end?
+How does photosynthesis work?
+Explain quantum computing in simple terms
+What causes earthquakes?
+How do vaccines work?
+What is the theory of relativity?
+Explain how the internet works
+What is machine learning?
+How does blockchain work?
+What causes climate change?
+Explain the water cycle
+How do airplanes fly?
+What is DNA?
+How does the heart pump blood?
+What causes thunder and lightning?
+Explain gravity
+How do magnets work?
+What is nuclear fusion?
+How do solar panels work?
+What is the greenhouse effect?
+Explain how batteries work
+How does WiFi work?
+What is cryptocurrency?
+How does GPS work?
+Explain how computers store data
+What is artificial intelligence?
+How do electric cars work?
+What is the Big Bang theory?
+Explain evolution
+How do antibiotics work?
+What causes cancer?
+How does memory work in the brain?
+What is consciousness?
+Explain black holes
+How do stars form?
+What is dark matter?
+Explain the periodic table
+How do nuclear reactors work?
+What is string theory?
+How does the immune system work?
+What causes allergies?
+Explain how muscles grow
+How does digestion work?
+What is metabolism?
+Explain the nervous system
+How do eyes see?
+What causes dreams?
+How does sleep affect the body?
+Explain circadian rhythms
+What is neuroplasticity?
+How do hormones work?
+What is the microbiome?
+Explain genetics and heredity
+How do genes get passed down?
+What is CRISPR?
+Explain stem cells
+How does aging work?
+What causes Alzheimer's?
+How do antidepressants work?
+Explain addiction
+What is inflammation?
+How do painkillers work?
+Explain anesthesia
+How does surgery work?
+What is chemotherapy?
+Explain radiation therapy
+How do MRI machines work?
+What is an X-ray?
+Explain ultrasound technology
+How do pacemakers work?
+What are prosthetics?
+Explain 3D printing organs
+How does LASIK work?
+What is gene therapy?
+Explain clinical trials
+How are drugs developed?
+What is the FDA approval process?
+Explain placebo effect
+How do supplements work?
+What is nutrition science?
+Explain vitamins and minerals
+How does caffeine work?
+What is intermittent fasting?
+Explain keto diet science
+How does exercise affect the brain?
+What is HIIT training?
+Explain muscle recovery
+How do steroids work?
+What is doping?
+Explain sports psychology
+How does meditation affect the brain?
+What is mindfulness?
+Explain cognitive behavioral therapy
+How does therapy work?
+What is psychoanalysis?
+Explain different therapy approaches
+How do antipsychotics work?
+What is schizophrenia?
+Explain bipolar disorder
+What causes depression?
+
+# === CREATIVE & WRITING (601-680) ===
+Write a haiku about autumn
+Help me write a birthday card message
+Draft an email to my boss about vacation time
+Write a short story opening
+Help me come up with a business name
+Write a limerick about coding
+Draft a wedding toast
+Help me write my dating profile
+Write a product description for handmade soap
+Come up with 10 blog post ideas about cooking
+Write a professional bio for LinkedIn
+Help me write a cover letter
+Draft a thank you note
+Write a poem about the ocean
+Help me name my new puppy
+Write a tagline for a coffee shop
+Draft a resignation letter
+Help me write wedding vows
+Write a children's bedtime story
+Come up with Instagram captions
+Write a review for a restaurant
+Help me write a complaint letter
+Draft an apology message
+Write a motivational quote
+Help me brainstorm book titles
+Write a product review
+Draft a recommendation letter
+Help me write a speech introduction
+Write a company mission statement
+Come up with podcast episode ideas
+Write a press release draft
+Help me name my podcast
+Draft a newsletter introduction
+Write social media post ideas
+Help me write a toast for retirement party
+Come up with marketing slogans
+Write an elevator pitch
+Help me describe my startup
+Draft a crowdfunding campaign description
+Write a video script outline
+Help me write YouTube video titles
+Come up with thumbnail ideas
+Write an email newsletter subject line
+Help me brainstorm content ideas
+Draft a collaboration proposal
+Write a media kit description
+Help me write an about page
+Come up with FAQ answers
+Write terms and conditions summary
+Help me simplify legal language
+Draft a privacy policy summary
+Write a return policy
+Help me write shipping information
+Come up with loyalty program description
+Write a referral program description
+Help me describe subscription benefits
+Draft a testimonial request
+Write a survey introduction
+Help me phrase survey questions
+Come up with contest rules
+Write a giveaway announcement
+Help me write prize descriptions
+Draft event invitation text
+Write RSVP instructions
+Help me word dietary restriction options
+Come up with seating arrangement descriptions
+Write thank you for attending message
+Help me write feedback request
+Draft post-event survey
+Write event recap summary
+Help me create event hashtags
+Come up with photo caption ideas
+Write photo album descriptions
+Help me title my photo series
+Draft artist statement
+Write exhibition description
+Help me describe my art style
+Come up with portfolio introduction
+Write gallery submission letter
+
+# === LIFE ADVICE & DECISIONS (681-760) ===
+Should I take this job offer?
+How do I negotiate a raise?
+Is it a good time to buy a house?
+Should I go back to school?
+How do I deal with a difficult coworker?
+Should I start my own business?
+How do I know if I should break up?
+What questions should I ask in a job interview?
+How do I make new friends as an adult?
+Should I move to a new city?
+How do I deal with burnout?
+What should I consider before getting a dog?
+How do I set boundaries with family?
+Should I invest in stocks or real estate?
+How do I overcome imposter syndrome?
+What should I look for in a roommate?
+How do I deal with a toxic friend?
+Should I lease or buy a car?
+How do I ask for a promotion?
+What should I consider before having kids?
+How do I handle criticism at work?
+Should I pay off debt or invest?
+How do I maintain work-life balance?
+What should I look for in a therapist?
+How do I deal with anxiety?
+Should I get a credit card?
+How do I build good habits?
+What should I consider before marriage?
+How do I handle conflict with my partner?
+Should I rent or buy?
+How do I know if I'm in the right career?
+What should I prioritize in my 20s?
+How do I deal with regret?
+Should I quit my job without another lined up?
+How do I handle a micromanaging boss?
+What should I look for in a mentor?
+How do I ask someone to be my mentor?
+Should I tell my boss I'm job hunting?
+How do I deal with loneliness?
+What should I do if I hate my job?
+How do I know if therapy is working?
+Should I take a gap year?
+How do I decide on a college major?
+What should I consider for retirement planning?
+How do I deal with grief?
+Should I move back in with parents?
+How do I set financial goals?
+What should I prioritize when budgeting?
+How do I deal with comparison on social media?
+Should I delete social media?
+How do I find my passion?
+What should I do with my life?
+How do I stop procrastinating?
+Should I pursue my dream or be practical?
+How do I deal with failure?
+What should I do when I feel stuck?
+How do I build self-confidence?
+Should I forgive someone who hurt me?
+How do I let go of the past?
+What should I do when I can't sleep?
+How do I deal with stress?
+Should I say yes to everything?
+How do I learn to say no?
+What should I prioritize for self-care?
+How do I find motivation?
+Should I follow my head or my heart?
+How do I make tough decisions?
+What should I do when I feel overwhelmed?
+How do I stop overthinking?
+Should I confront someone or let it go?
+How do I deal with change?
+What should I do when plans fall through?
+How do I cope with disappointment?
+Should I give someone a second chance?
+How do I trust again after betrayal?
+What should I do when I'm angry?
+How do I communicate better?
+Should I apologize first?
+How do I accept an apology?
+What should I do when I make a mistake?
+
+# === FOOD & COOKING (761-840) ===
+What should I make for dinner?
+Recipe for chicken parmesan
+How do I make pasta from scratch?
+What's a good meal prep idea?
+Recipe for chocolate chip cookies
+How long do I bake a potato?
+What temperature for roasting vegetables?
+How do I make fried rice?
+Recipe for banana bread
+What can I make with chicken and rice?
+How do I cook a perfect steak?
+Recipe for homemade pizza dough
+What's an easy weeknight dinner?
+How do I make scrambled eggs fluffy?
+Recipe for beef stew
+What can I substitute for eggs in baking?
+How do I make soup from scratch?
+Recipe for guacamole
+What's a healthy breakfast idea?
+How do I meal plan for the week?
+Recipe for overnight oats
+What can I make with ground beef?
+How do I cook salmon?
+Recipe for tacos
+What's a good vegetarian dinner?
+How do I make smoothies?
+Recipe for pancakes
+What can I make with leftover rice?
+How do I store fresh herbs?
+Recipe for garlic bread
+What's a quick lunch idea?
+How do I make coffee at home better?
+Recipe for hummus
+What can I make with canned beans?
+How do I cook quinoa?
+Recipe for stir fry
+What's a good snack idea?
+How do I make salad dressing?
+Recipe for grilled cheese
+What can I make with pasta?
+How do I poach an egg?
+Recipe for meatballs
+What's a good side dish?
+How do I make mashed potatoes?
+Recipe for chili
+What can I make with vegetables?
+How do I roast a chicken?
+Recipe for mac and cheese
+What's a good appetizer?
+How do I make French toast?
+Recipe for brownies
+What can I make for a potluck?
+How do I cook shrimp?
+Recipe for Caesar salad
+What's a good dessert?
+How do I make whipped cream?
+Recipe for apple pie
+What can I make with tofu?
+How do I grill burgers?
+Recipe for potato salad
+What's a good brunch idea?
+How do I make hollandaise sauce?
+Recipe for eggs benedict
+What can I make ahead of time?
+How do I freeze meals?
+Recipe for lasagna
+What's a good comfort food?
+How do I make gravy?
+Recipe for meatloaf
+What can I make in a slow cooker?
+How do I use an Instant Pot?
+Recipe for pulled pork
+What's a good summer dish?
+How do I make lemonade?
+Recipe for coleslaw
+What can I make on the grill?
+How do I marinate meat?
+Recipe for kabobs
+What's a good winter dish?
+How do I make hot chocolate?
+
+# === HEALTH & FITNESS (841-920) ===
+How many calories should I eat?
+What's a good workout for beginners?
+How do I start running?
+What should I eat before a workout?
+How many steps should I walk daily?
+What's a good stretching routine?
+How do I build muscle?
+What exercises target belly fat?
+How do I improve my posture?
+What's a good home workout?
+How do I stay motivated to exercise?
+What should I eat after working out?
+How do I prevent injury while exercising?
+What's a good yoga routine for beginners?
+How do I increase flexibility?
+What exercises help with back pain?
+How do I do a proper squat?
+What's a good ab workout?
+How do I start weightlifting?
+What exercises can I do at my desk?
+How do I improve my sleep?
+What's a good bedtime routine?
+How do I reduce stress naturally?
+What foods help with inflammation?
+How do I boost my immune system?
+What supplements should I take?
+How do I drink more water?
+What's a healthy breakfast?
+How do I cut back on sugar?
+What are healthy snack options?
+How do I read nutrition labels?
+What's a balanced diet look like?
+How do I count macros?
+What foods are high in protein?
+How do I get more fiber?
+What are healthy fats?
+How do I reduce sodium intake?
+What's the Mediterranean diet?
+How do I meal prep for weight loss?
+What are empty calories?
+How do I stop emotional eating?
+What's mindful eating?
+How do I improve gut health?
+What are probiotics good for?
+How do I deal with food cravings?
+What's a good detox?
+How do I fast safely?
+What's the best diet for energy?
+How do I manage portion sizes?
+What foods help with brain health?
+How do I lower cholesterol naturally?
+What's good for heart health?
+How do I manage blood sugar?
+What foods help with anxiety?
+How do I improve focus naturally?
+What's good for skin health?
+How do I strengthen my hair?
+What helps with joint pain?
+How do I improve digestion?
+What helps with bloating?
+How do I boost metabolism?
+What affects energy levels?
+How do I recover from a workout?
+What helps muscle soreness?
+How do I prevent cramps?
+What's good for hydration?
+How do I exercise with a busy schedule?
+What's a 15-minute workout?
+How do I workout while traveling?
+What equipment do I need at home?
+How do I create a workout plan?
+What's progressive overload?
+How do I track fitness progress?
+What's a good fitness goal?
+How do I stay consistent?
+What's the best time to workout?
+How do I warm up properly?
+What's a good cool down routine?
+How do I balance cardio and strength?
+What's HIIT vs steady state cardio?
+
+# === TRAVEL & GEOGRAPHY (921-1000) ===
+Best places to visit in Italy
+How do I plan a trip to Japan?
+What's the capital of Australia?
+Best time to visit Greece
+How many time zones are there?
+What currency do they use in Mexico?
+Best beaches in Thailand
+How do I get a passport?
+What vaccinations do I need for Africa?
+Best hiking trails in Colorado
+How long is the flight to London?
+What's the population of Tokyo?
+Best restaurants in Paris
+How do I rent a car abroad?
+What language do they speak in Brazil?
+Best national parks in the US
+How do I book a cruise?
+What's the weather like in Iceland?
+Best cities for digital nomads
+How do I find cheap flights?
+What's the best travel credit card?
+Best hotels in New York City
+How do I pack light?
+What's allowed in carry-on luggage?
+Best road trip routes in California
+How do I deal with jet lag?
+What's the drinking age in Europe?
+Best islands in the Caribbean
+How do I tip in different countries?
+What's the best travel insurance?
+Best skiing destinations
+How do I stay safe while traveling?
+What's the time difference with Tokyo?
+Best places for solo travel
+How do I learn basic phrases for travel?
+What's the visa process for China?
+Best food destinations in Asia
+How do I use public transit abroad?
+What's the best way to exchange currency?
+Best places to visit in South America
+How do I plan a backpacking trip?
+What's the best luggage brand?
+Best European cities for a weekend trip
+How do I find local experiences?
+What's the rainy season in Southeast Asia?
+Best places for wildlife watching
+How do I book trains in Europe?
+What's an Airbnb vs hotel comparison?
+Best places for adventure travel
+How do I travel with pets?
+What's the best camera for travel?
+Best destinations for couples
+How do I plan a honeymoon?
+What's the cheapest country to visit?
+Best places for history lovers
+How do I avoid tourist traps?
+What's the best travel app?
+Best places for art and culture
+How do I find walking tours?
+What's the altitude in Denver?
+Best places for beach vacations
+How do I plan a family vacation?
+What's kid-friendly in Orlando?
+Best places for wine tasting
+How do I book a safari?
+What's the Great Barrier Reef like?
+Best places to see northern lights
+How do I visit Machu Picchu?
+What's the best time for cherry blossoms in Japan?
+Best Christmas markets in Europe
+How do I plan a Disney trip?
+What's the best cruise line?
+Best places for scuba diving
+How do I travel on a budget?
+What's voluntourism?
+Best places for spiritual retreats
+How do I find house sitting opportunities?
+What's the best way to see the Grand Canyon?
+Best places for fall foliage
+How do I rent a villa in Tuscany?
