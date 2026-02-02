@@ -297,18 +297,8 @@ function quickClassify(content) {
     }
   }
 
-  // Very short messages (< 30 chars) without code markers are usually casual
-  if (content.trim().length < 30 && !content.includes('```') && !content.includes('function')) {
-    return {
-      category: 'conversation',
-      confidence: 0.85,
-      complexity: 'simple',
-      suggestedBackends: [findBackendBySpecialty('general')],
-      quick: true
-    };
-  }
-
   // Real-time/current information patterns - requires web access
+  // Check these BEFORE the short message heuristic
   const realtimePatterns = [
     /\b(current|right now|today'?s?|latest|live)\b.*\b(weather|temperature|forecast)\b/i,
     /\b(weather|temperature|forecast)\b.*\b(current|right now|today|now)\b/i,
@@ -318,7 +308,10 @@ function quickClassify(content) {
     /\b(stock|share) price\b/i,
     /\bwhat time is it\b/i,
     /\b(who won|score of)\b.*\b(game|match)\b/i,
-    /\btrending\b/i
+    /\btrending\b/i,
+    /\bis\s+\w+\s+(down|up|working|online|offline)\b/i,  // "is Netflix down", "is AWS working"
+    /\b(outage|downtime|status)\b.*\b(right now|currently|today)?\b/i,  // "Netflix outage", "AWS status"
+    /\b(down|offline|not working)\s+(right now|currently|today)?\b/i  // "X is down right now"
   ];
 
   for (const pattern of realtimePatterns) {
@@ -332,6 +325,18 @@ function quickClassify(content) {
         note: 'Requires real-time web access - using web_search tool'
       };
     }
+  }
+
+  // Very short messages (< 30 chars) without code markers are usually casual
+  // This check comes AFTER realtime patterns to avoid misclassifying service status queries
+  if (content.trim().length < 30 && !content.includes('```') && !content.includes('function')) {
+    return {
+      category: 'conversation',
+      confidence: 0.85,
+      complexity: 'simple',
+      suggestedBackends: [findBackendBySpecialty('general')],
+      quick: true
+    };
   }
 
   // Research/factual patterns
@@ -1014,7 +1019,66 @@ async function performWebSearch(query) {
       }
     }
 
-    // For non-weather queries, return a helpful message since DuckDuckGo blocks automated requests
+    // Check if this is a service status query - use isitdownrightnow.com
+    const serviceMatch = queryLower.match(/(?:is\s+)?(\w+(?:\.\w+)?)\s+(?:down|up|working|online|offline|status|outage)/i) ||
+                         queryLower.match(/(?:down|outage|status).*?(\w+(?:\.\w+)?)/i);
+    if (serviceMatch) {
+      let service = serviceMatch[1].toLowerCase();
+      // Clean up common words that aren't services
+      if (['the', 'a', 'an', 'is', 'are', 'it', 'right', 'now'].includes(service)) {
+        service = null;
+      }
+
+      if (service) {
+        // Add .com if no domain extension
+        if (!service.includes('.')) {
+          service = service + '.com';
+        }
+
+        log('info', `Service status query detected for: ${service}`);
+
+        try {
+          // Try isitdownrightnow.com
+          const statusUrl = `https://www.isitdownrightnow.com/${service}.html`;
+          const statusResponse = await makeRequest(statusUrl, {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'text/html'
+            }
+          });
+
+          if (statusResponse.status === 200) {
+            const html = statusResponse.body;
+            // Parse status from the page
+            const upMatch = html.match(/class="[^"]*upicon[^"]*"|UP\s+RIGHT\s+NOW/i);
+            const downMatch = html.match(/class="[^"]*downicon[^"]*"|DOWN\s+RIGHT\s+NOW/i);
+            const responseTimeMatch = html.match(/Response\s+Time[^<]*<[^>]*>([^<]+)/i);
+
+            let status = 'unknown';
+            if (upMatch) status = 'up';
+            else if (downMatch) status = 'down';
+
+            const responseTime = responseTimeMatch ? responseTimeMatch[1].trim() : 'unknown';
+
+            log('info', `Service status for ${service}: ${status}`);
+            return {
+              query,
+              type: 'service_status',
+              service: service,
+              status: status,
+              responseTime: responseTime,
+              checkUrl: statusUrl,
+              timestamp: new Date().toISOString()
+            };
+          }
+        } catch (statusErr) {
+          log('warn', `Failed to check service status: ${statusErr.message}`);
+        }
+      }
+    }
+
+    // For other queries, return a helpful message since DuckDuckGo blocks automated requests
     log('info', `General search query - returning guidance`);
     return {
       query,
@@ -1082,6 +1146,20 @@ Wind: ${w.wind_mph} mph (${w.wind_kph} km/h) from ${w.wind_dir}
 Visibility: ${w.visibility_km} km
 UV Index: ${w.uv_index}
 Observation time: ${w.observation_time} UTC`;
+  }
+
+  // Handle service status data
+  if (searchResponse.type === 'service_status') {
+    const statusText = searchResponse.status === 'up' ? 'UP and operational' :
+                       searchResponse.status === 'down' ? 'DOWN or experiencing issues' :
+                       'status unknown';
+    return `Service status check for ${searchResponse.service} (as of ${searchResponse.timestamp}):
+
+Status: ${statusText}
+Response Time: ${searchResponse.responseTime}
+Source: isitdownrightnow.com
+
+Note: For the most accurate information, users can check ${searchResponse.checkUrl}`;
   }
 
   // Handle search message (when DuckDuckGo is blocked)
