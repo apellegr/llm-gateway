@@ -702,6 +702,68 @@ select:focus, input[type="text"]:focus {
   border: 1px solid var(--border);
 }
 
+/* Token Usage Panel */
+.token-panel {
+  grid-column: 1 / -1;
+}
+
+.token-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.token-card::before {
+  background: var(--gradient-3) !important;
+}
+
+.token-card:nth-child(1)::before { background: var(--gradient-3) !important; }
+.token-card:nth-child(2)::before { background: var(--gradient-2) !important; }
+.token-card:nth-child(3)::before { background: var(--gradient-1) !important; }
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.chart-container {
+  background: var(--bg-card);
+  border-radius: 14px;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+}
+
+.chart-container h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chart-container canvas {
+  max-height: 250px;
+}
+
+@media (max-width: 1200px) {
+  .token-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .token-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Category Chart */
 .category-panel {
   grid-column: span 6;

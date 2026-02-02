@@ -8,7 +8,7 @@
  * - SSE streaming support with format translation
  * - Web dashboard for monitoring and control
  * - CLI interface (proxy-cli commands)
- * - Debug endpoints: /debug/logs, /debug/health, /debug/compare, /debug/stats
+ * - Debug endpoints: /debug/logs, /debug/health, /debug/compare, /debug/stats, /debug/tokens
  * - Prometheus metrics
  *
  * Configuration via environment variables:
@@ -389,6 +389,50 @@ function getRoutingRecommendation(classification, contextLength = 0, userId = 'd
   let selectedBackend = backends[0];
   let multiModel = false;
   let reason = `category: ${classification.category}`;
+  let userPreferenceApplied = false;
+
+  // Build candidate scoring for enhanced routing details
+  const candidates = validBackends.map(backend => {
+    const backendConfig = config.smartRouter?.backends?.[backend] || {};
+    const specialties = backendConfig.specialties || [];
+    const category = classification.category || 'general';
+
+    // Calculate score based on specialty match and classification confidence
+    let score = 0;
+    const matchedSpecialties = [];
+
+    // Check specialty matches
+    if (specialties.includes(category)) {
+      score += 0.5;
+      matchedSpecialties.push(category);
+    }
+    if (specialties.includes(classification.complexity)) {
+      score += 0.2;
+      matchedSpecialties.push(classification.complexity);
+    }
+    for (const keyword of (classification.keywords || [])) {
+      if (specialties.includes(keyword)) {
+        score += 0.1;
+        matchedSpecialties.push(keyword);
+      }
+    }
+
+    // Boost if in suggested backends
+    if (suggestedBackends.includes(backend)) {
+      score += 0.3 * (classification.confidence || 0.5);
+    }
+
+    // Cap at 1.0
+    score = Math.min(score, 1.0);
+
+    return {
+      backend,
+      score: Math.round(score * 100) / 100,
+      matched: matchedSpecialties,
+      specialties,
+      contextWindow: backendConfig.contextWindow || 0
+    };
+  }).sort((a, b) => b.score - a.score);
 
   // Log if we had to filter out invalid backends
   if (classification.suggestedBackends?.length > suggestedBackends.length) {
@@ -422,6 +466,7 @@ function getRoutingRecommendation(classification, contextLength = 0, userId = 'd
     if (backends.includes(preferred)) {
       selectedBackend = preferred;
       reason += ' (user preference)';
+      userPreferenceApplied = true;
     }
   }
 
@@ -430,7 +475,12 @@ function getRoutingRecommendation(classification, contextLength = 0, userId = 'd
     multiModel,
     allBackends: multiModel ? backends.slice(0, 3) : [selectedBackend],
     reason,
-    classification
+    classification,
+    // Enhanced routing details
+    candidates: candidates.slice(0, 4),  // Top 4 candidates
+    confidenceThreshold: 0.7,
+    userPreferenceApplied,
+    contextLength
   };
 }
 
@@ -606,7 +656,11 @@ const metrics = {
   requests_by_status: {},
   errors_total: 0,
   latency_sum: 0,
-  latency_count: 0
+  latency_count: 0,
+  // Token tracking
+  tokens_input_total: 0,
+  tokens_output_total: 0,
+  tokens_by_backend: {}  // { backend: { input: N, output: N } }
 };
 
 // Load configuration
@@ -646,6 +700,38 @@ function addRequestLog(entry) {
   if (requestLogs.length > MAX_LOGS) {
     requestLogs.pop();
   }
+}
+
+// Extract tokens from response and update metrics
+function extractAndTrackTokens(responseBody, backend) {
+  let tokens = { input: 0, output: 0, total: 0 };
+
+  try {
+    const parsed = typeof responseBody === 'string' ? JSON.parse(responseBody) : responseBody;
+    const usage = parsed.usage;
+
+    if (usage) {
+      // Handle both OpenAI (prompt_tokens, completion_tokens) and Anthropic (input_tokens, output_tokens) formats
+      tokens.input = usage.prompt_tokens || usage.input_tokens || 0;
+      tokens.output = usage.completion_tokens || usage.output_tokens || 0;
+      tokens.total = tokens.input + tokens.output;
+
+      // Update global metrics
+      metrics.tokens_input_total += tokens.input;
+      metrics.tokens_output_total += tokens.output;
+
+      // Update per-backend metrics
+      if (!metrics.tokens_by_backend[backend]) {
+        metrics.tokens_by_backend[backend] = { input: 0, output: 0 };
+      }
+      metrics.tokens_by_backend[backend].input += tokens.input;
+      metrics.tokens_by_backend[backend].output += tokens.output;
+    }
+  } catch (e) {
+    // Ignore parse errors - streaming responses may not have usage data
+  }
+
+  return tokens;
 }
 
 // Generate unique request ID
@@ -708,8 +794,16 @@ function openAIToAnthropic(body) {
   const messages = (parsed.messages || []).filter(m => m.role !== 'system');
   const systemMessage = (parsed.messages || []).find(m => m.role === 'system');
 
+  // Map model name to valid Anthropic model
+  let model = parsed.model || 'claude-sonnet-4-20250514';
+  const modelLower = model.toLowerCase();
+  if (!modelLower.includes('claude')) {
+    // Default to Claude Sonnet for non-Claude model names
+    model = 'claude-sonnet-4-20250514';
+  }
+
   return {
-    model: parsed.model || 'claude-sonnet-4-20250514',
+    model,
     messages: messages,
     max_tokens: parsed.max_tokens || 1024,
     temperature: parsed.temperature,
@@ -1364,13 +1458,35 @@ function handleStreaming(proxyRes, clientRes, requestLog, needsConversion = fals
       converted: needsConversion
     };
     requestLog.timing.totalMs = Date.now() - requestLog.timing.startTime;
+
+    // Track tokens from streaming state
+    const backend = requestLog.destination;
+    const tokens = {
+      input: streamState.usage?.input_tokens || 0,
+      output: streamState.usage?.output_tokens || 0,
+      total: (streamState.usage?.input_tokens || 0) + (streamState.usage?.output_tokens || 0)
+    };
+    requestLog.tokens = tokens;
+
+    // Update global metrics
+    if (tokens.input > 0 || tokens.output > 0) {
+      metrics.tokens_input_total += tokens.input;
+      metrics.tokens_output_total += tokens.output;
+      if (!metrics.tokens_by_backend[backend]) {
+        metrics.tokens_by_backend[backend] = { input: 0, output: 0 };
+      }
+      metrics.tokens_by_backend[backend].input += tokens.input;
+      metrics.tokens_by_backend[backend].output += tokens.output;
+    }
+
     addRequestLog(requestLog);
 
     log('info', `Streaming request completed: ${requestLog.destination} ${proxyRes.status} ${requestLog.timing.totalMs}ms (model: ${streamState.model || 'unknown'})`, {
       requestId: requestLog.id,
       backend: requestLog.destination,
       model: streamState.model || 'unknown',
-      converted: needsConversion
+      converted: needsConversion,
+      tokens: tokens
     });
 
     clientRes.end();
@@ -1623,6 +1739,7 @@ async function handleProxyRequest(req, res, body) {
     } else if (!isAnthropicFormat && !isResponsesAPI && backend === 'anthropic') {
       // OpenAI -> Anthropic conversion
       requestBody = JSON.stringify(openAIToAnthropic(body));
+      targetPath = '/v1/messages';  // Anthropic uses /v1/messages endpoint
       requestLog.formatConversion = 'openai-to-anthropic';
       log('debug', 'Converting OpenAI format to Anthropic', { requestId });
     }
@@ -1721,6 +1838,9 @@ async function handleProxyRequest(req, res, body) {
     };
     requestLog.timing.totalMs = Date.now() - startTime;
     requestLog.error = null;
+
+    // Extract and track tokens from response
+    requestLog.tokens = extractAndTrackTokens(responseBody, backend);
 
     addRequestLog(requestLog);
 
@@ -2264,6 +2384,86 @@ function handleDebugStats(req, res) {
   res.end(JSON.stringify(stats, null, 2));
 }
 
+// Debug endpoint: Token usage statistics
+function handleDebugTokens(req, res) {
+  const logs = requestLogs.slice(0, 1000);
+  const now = Date.now();
+
+  // Aggregate token stats
+  const tokenStats = {
+    total: {
+      input: metrics.tokens_input_total,
+      output: metrics.tokens_output_total,
+      combined: metrics.tokens_input_total + metrics.tokens_output_total
+    },
+    byBackend: {},
+    byHour: [],      // Last 24 hours
+    byCategory: {},
+    recent: []       // Last 10 requests with tokens
+  };
+
+  // Copy per-backend token totals from metrics
+  for (const [backend, tokens] of Object.entries(metrics.tokens_by_backend)) {
+    tokenStats.byBackend[backend] = {
+      input: tokens.input,
+      output: tokens.output,
+      total: tokens.input + tokens.output
+    };
+  }
+
+  // Calculate tokens by hour (last 24 hours)
+  const hoursAgo = new Array(24).fill(null).map((_, i) => ({
+    hour: new Date(now - (23 - i) * 3600000).toISOString().slice(0, 13) + ':00',
+    input: 0,
+    output: 0,
+    total: 0,
+    requests: 0
+  }));
+
+  for (const log of logs) {
+    const logTime = new Date(log.timestamp).getTime();
+    const hoursBack = Math.floor((now - logTime) / 3600000);
+
+    if (hoursBack >= 0 && hoursBack < 24) {
+      const hourIndex = 23 - hoursBack;
+      const tokens = log.tokens || { input: 0, output: 0 };
+      hoursAgo[hourIndex].input += tokens.input || 0;
+      hoursAgo[hourIndex].output += tokens.output || 0;
+      hoursAgo[hourIndex].total += (tokens.input || 0) + (tokens.output || 0);
+      hoursAgo[hourIndex].requests++;
+    }
+
+    // Aggregate by category
+    const category = log.smartRouting?.classification?.category || 'unclassified';
+    if (!tokenStats.byCategory[category]) {
+      tokenStats.byCategory[category] = { input: 0, output: 0, total: 0, requests: 0 };
+    }
+    const catTokens = log.tokens || { input: 0, output: 0 };
+    tokenStats.byCategory[category].input += catTokens.input || 0;
+    tokenStats.byCategory[category].output += catTokens.output || 0;
+    tokenStats.byCategory[category].total += (catTokens.input || 0) + (catTokens.output || 0);
+    tokenStats.byCategory[category].requests++;
+  }
+
+  tokenStats.byHour = hoursAgo;
+
+  // Get recent requests with non-zero tokens
+  tokenStats.recent = logs
+    .filter(l => l.tokens && (l.tokens.input > 0 || l.tokens.output > 0))
+    .slice(0, 10)
+    .map(l => ({
+      timestamp: l.timestamp,
+      backend: l.destination,
+      category: l.smartRouting?.classification?.category,
+      input: l.tokens.input,
+      output: l.tokens.output,
+      total: l.tokens.total
+    }));
+
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(tokenStats, null, 2));
+}
+
 // Debug endpoint: Switch default backend/model
 function handleDebugSwitch(req, res, body) {
   if (req.method !== 'POST') {
@@ -2482,6 +2682,11 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (pathname === '/debug/tokens') {
+      handleDebugTokens(req, res);
+      return;
+    }
+
     // Dashboard - serve static files
     if (pathname.startsWith('/dashboard')) {
       const filePath = pathname.replace('/dashboard', '') || '/';
@@ -2503,7 +2708,7 @@ const server = http.createServer((req, res) => {
         },
         endpoints: {
           proxy: '/v1/chat/completions, /v1/messages, /v1/responses',
-          debug: '/debug/logs, /debug/health, /debug/compare, /debug/config, /debug/router, /debug/models, /debug/switch, /debug/stats',
+          debug: '/debug/logs, /debug/health, /debug/compare, /debug/config, /debug/router, /debug/models, /debug/switch, /debug/stats, /debug/tokens',
           dashboard: '/dashboard',
           metrics: ':9090/metrics'
         },
@@ -2554,6 +2759,28 @@ const metricsServer = http.createServer((req, res) => {
     output += '# TYPE llm_proxy_requests_by_status counter\n';
     for (const [status, count] of Object.entries(metrics.requests_by_status)) {
       output += `llm_proxy_requests_by_status{status="${status}"} ${count}\n`;
+    }
+    output += '\n';
+
+    output += '# HELP llm_proxy_tokens_input_total Total input tokens processed\n';
+    output += '# TYPE llm_proxy_tokens_input_total counter\n';
+    output += `llm_proxy_tokens_input_total ${metrics.tokens_input_total}\n\n`;
+
+    output += '# HELP llm_proxy_tokens_output_total Total output tokens generated\n';
+    output += '# TYPE llm_proxy_tokens_output_total counter\n';
+    output += `llm_proxy_tokens_output_total ${metrics.tokens_output_total}\n\n`;
+
+    output += '# HELP llm_proxy_tokens_by_backend_input Input tokens by backend\n';
+    output += '# TYPE llm_proxy_tokens_by_backend_input counter\n';
+    for (const [backend, tokens] of Object.entries(metrics.tokens_by_backend)) {
+      output += `llm_proxy_tokens_by_backend_input{backend="${backend}"} ${tokens.input}\n`;
+    }
+    output += '\n';
+
+    output += '# HELP llm_proxy_tokens_by_backend_output Output tokens by backend\n';
+    output += '# TYPE llm_proxy_tokens_by_backend_output counter\n';
+    for (const [backend, tokens] of Object.entries(metrics.tokens_by_backend)) {
+      output += `llm_proxy_tokens_by_backend_output{backend="${backend}"} ${tokens.output}\n`;
     }
 
     res.writeHead(200, { 'Content-Type': 'text/plain' });

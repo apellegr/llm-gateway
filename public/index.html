@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/dashboard/dashboard.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <header>
@@ -52,6 +53,38 @@
           <div class="stat-icon">🕐</div>
           <div class="stat-value" id="requests-hour">--</div>
           <div class="stat-label">Last Hour</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Token Usage Section -->
+    <section class="panel token-panel">
+      <h2>Token Usage</h2>
+      <div class="token-cards">
+        <div class="stat-card token-card">
+          <div class="stat-icon">📥</div>
+          <div class="stat-value" id="total-input-tokens">0</div>
+          <div class="stat-label">Input Tokens</div>
+        </div>
+        <div class="stat-card token-card">
+          <div class="stat-icon">📤</div>
+          <div class="stat-value" id="total-output-tokens">0</div>
+          <div class="stat-label">Output Tokens</div>
+        </div>
+        <div class="stat-card token-card">
+          <div class="stat-icon">📊</div>
+          <div class="stat-value" id="total-tokens">0</div>
+          <div class="stat-label">Total Tokens</div>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-container">
+          <h3>Tokens by Backend</h3>
+          <canvas id="tokensByBackendChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Tokens Over Time (24h)</h3>
+          <canvas id="tokensOverTimeChart"></canvas>
         </div>
       </div>
     </section>

@@ -3,10 +3,15 @@ const state = {
   stats: null,
   logs: [],
   backends: [],
+  tokenStats: null,
   selectedLog: null,
   refreshInterval: 30,
   countdown: 30,
-  autoRefresh: true
+  autoRefresh: true,
+  charts: {
+    tokensByBackend: null,
+    tokensOverTime: null
+  }
 };
 
 // API Base URL (relative to current host)
@@ -55,6 +60,13 @@ const elements = {
 
   // Performance
   performanceTbody: document.getElementById('performance-tbody'),
+
+  // Tokens
+  totalInputTokens: document.getElementById('total-input-tokens'),
+  totalOutputTokens: document.getElementById('total-output-tokens'),
+  totalTokens: document.getElementById('total-tokens'),
+  tokensByBackendChart: document.getElementById('tokensByBackendChart'),
+  tokensOverTimeChart: document.getElementById('tokensOverTimeChart'),
 
   // Footer
   refreshCountdown: document.getElementById('refresh-countdown')
@@ -138,6 +150,17 @@ async function clearRouterHistory() {
     return await response.json();
   } catch (error) {
     console.error('Error clearing history:', error);
+    return null;
+  }
+}
+
+async function fetchTokenStats() {
+  try {
+    const response = await fetch(`${API_BASE}/debug/tokens`);
+    if (!response.ok) throw new Error('Failed to fetch token stats');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching token stats:', error);
     return null;
   }
 }
@@ -310,6 +333,182 @@ function updatePerformanceTable(stats) {
   }
 }
 
+// Format large numbers with K/M suffix
+function formatNumber(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+}
+
+// Update token displays
+function updateTokenDisplay(tokenStats) {
+  if (!tokenStats) return;
+
+  elements.totalInputTokens.textContent = formatNumber(tokenStats.total.input);
+  elements.totalOutputTokens.textContent = formatNumber(tokenStats.total.output);
+  elements.totalTokens.textContent = formatNumber(tokenStats.total.combined);
+}
+
+// Chart color palette
+const chartColors = {
+  primary: 'rgba(99, 102, 241, 0.8)',
+  primaryBg: 'rgba(99, 102, 241, 0.2)',
+  secondary: 'rgba(139, 92, 246, 0.8)',
+  secondaryBg: 'rgba(139, 92, 246, 0.2)',
+  success: 'rgba(16, 185, 129, 0.8)',
+  successBg: 'rgba(16, 185, 129, 0.2)',
+  warning: 'rgba(245, 158, 11, 0.8)',
+  warningBg: 'rgba(245, 158, 11, 0.2)',
+  error: 'rgba(239, 68, 68, 0.8)',
+  errorBg: 'rgba(239, 68, 68, 0.2)',
+  backendColors: [
+    'rgba(99, 102, 241, 0.8)',   // indigo
+    'rgba(16, 185, 129, 0.8)',   // green
+    'rgba(245, 158, 11, 0.8)',   // amber
+    'rgba(236, 72, 153, 0.8)',   // pink
+    'rgba(59, 130, 246, 0.8)',   // blue
+  ]
+};
+
+// Render tokens by backend bar chart
+function renderTokensByBackend(tokenStats) {
+  if (!tokenStats?.byBackend) return;
+
+  const ctx = elements.tokensByBackendChart;
+  if (!ctx) return;
+
+  // Destroy existing chart if it exists
+  if (state.charts.tokensByBackend) {
+    state.charts.tokensByBackend.destroy();
+  }
+
+  const backends = Object.keys(tokenStats.byBackend);
+  const inputData = backends.map(b => tokenStats.byBackend[b].input);
+  const outputData = backends.map(b => tokenStats.byBackend[b].output);
+
+  state.charts.tokensByBackend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: backends,
+      datasets: [
+        {
+          label: 'Input Tokens',
+          data: inputData,
+          backgroundColor: chartColors.primary,
+          borderColor: chartColors.primary,
+          borderWidth: 1
+        },
+        {
+          label: 'Output Tokens',
+          data: outputData,
+          backgroundColor: chartColors.success,
+          borderColor: chartColors.success,
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#8888a0',
+            font: { size: 11 }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: { color: '#8888a0' }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#8888a0',
+            callback: (value) => formatNumber(value)
+          }
+        }
+      }
+    }
+  });
+}
+
+// Render tokens over time line chart
+function renderTokensOverTime(tokenStats) {
+  if (!tokenStats?.byHour) return;
+
+  const ctx = elements.tokensOverTimeChart;
+  if (!ctx) return;
+
+  // Destroy existing chart if it exists
+  if (state.charts.tokensOverTime) {
+    state.charts.tokensOverTime.destroy();
+  }
+
+  // Format hour labels to be more readable
+  const labels = tokenStats.byHour.map(h => {
+    const date = new Date(h.hour);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
+
+  const totalData = tokenStats.byHour.map(h => h.total);
+
+  state.charts.tokensOverTime = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Total Tokens',
+          data: totalData,
+          borderColor: chartColors.primary,
+          backgroundColor: chartColors.primaryBg,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          pointHoverRadius: 6
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: (context) => `Tokens: ${formatNumber(context.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#8888a0',
+            maxRotation: 45,
+            minRotation: 45,
+            maxTicksLimit: 12
+          }
+        },
+        y: {
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#8888a0',
+            callback: (value) => formatNumber(value)
+          },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
 function showLogDetails(log) {
   state.selectedLog = log;
 
@@ -446,21 +645,28 @@ function debounce(func, wait) {
 
 // Refresh data
 async function refreshData() {
-  const [stats, logs, backends] = await Promise.all([
+  const [stats, logs, backends, tokenStats] = await Promise.all([
     fetchStats(),
     fetchLogs(50),
-    fetchBackends()
+    fetchBackends(),
+    fetchTokenStats()
   ]);
 
   state.stats = stats;
   state.logs = logs;
   state.backends = backends;
+  state.tokenStats = tokenStats;
 
   updateOverview(stats);
   updateBackendsList(backends);
   updateConversationsList(logs);
   updateCategoryChart(stats);
   updatePerformanceTable(stats);
+
+  // Update token displays and charts
+  updateTokenDisplay(tokenStats);
+  renderTokensByBackend(tokenStats);
+  renderTokensOverTime(tokenStats);
 
   state.countdown = state.refreshInterval;
 }
