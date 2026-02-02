@@ -7,10 +7,10 @@ LABEL org.opencontainers.image.licenses=MIT
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json package-lock.json* ./
 
-# Install dependencies (none currently, but ready for future additions)
-RUN npm install --omit=dev 2>/dev/null || true
+# Install dependencies
+RUN npm install --omit=dev
 
 # Copy application code
 COPY index.js ./

@@ -24,6 +24,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 
 // MIME types for static file serving
 const MIME_TYPES = {
@@ -77,6 +78,20 @@ let config = {
         speed: 'medium',
         cost: 'paid'
       }
+    }
+  },
+  storage: {
+    enabled: false, // Enable MongoDB storage for request/response logging
+    uri: 'mongodb://127.0.0.1:27017',
+    database: 'llm_gateway',
+    collection: 'requests',
+    privacy: {
+      storeQueries: true,   // Store user message content
+      storeResponses: true  // Store assistant responses
+    },
+    retention: {
+      days: 30,            // Auto-delete after N days (0 = forever)
+      maxDocuments: 10000  // Max documents to keep
     }
   }
 };
@@ -154,8 +169,73 @@ User message to classify:
 `;
 }
 
+// Fast model-based check: does this query need real-time/current information?
+// Uses a small fast model (concierge/Llama-3.2-3B) for quick classification
+async function checkNeedsRealtimeInfo(userContent) {
+  // Use the fastest available backend (concierge = Llama-3.2-3B)
+  const fastBackend = config.backends.concierge || config.backends[config.defaultBackend];
+  if (!fastBackend) return false;
+
+  const checkUrl = fastBackend + '/v1/chat/completions';
+
+  const checkRequest = {
+    model: 'realtime-check',
+    messages: [
+      {
+        role: 'system',
+        content: `You determine if a query needs CURRENT/REAL-TIME information.
+Answer only YES or NO.
+
+YES if the query needs:
+- Current weather, temperature, or forecasts
+- Live prices (stocks, crypto, products)
+- Current news, events, or headlines
+- Service/website status (is X down?)
+- Sports scores or live results
+- Current time in a location
+- Any information that changes frequently and the user expects current data
+
+NO if:
+- The query is about general knowledge, concepts, or history
+- The query is asking for code, explanations, or analysis
+- The query doesn't need up-to-date information
+- The information wouldn't change day-to-day
+
+Answer only: YES or NO`
+      },
+      { role: 'user', content: userContent.substring(0, 500) }
+    ],
+    max_tokens: 5,
+    temperature: 0,
+    stream: false
+  };
+
+  try {
+    const response = await makeRequest(checkUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer not-required'
+      }
+    }, JSON.stringify(checkRequest));
+
+    if (response.status === 200) {
+      const parsed = JSON.parse(response.body);
+      const answer = (parsed.choices?.[0]?.message?.content || '').trim().toUpperCase();
+      const needsRealtime = answer.startsWith('YES');
+      log('debug', `Realtime check: "${userContent.substring(0, 50)}..." -> ${needsRealtime ? 'YES' : 'NO'}`);
+      return needsRealtime;
+    }
+  } catch (err) {
+    log('warn', `Realtime check failed: ${err.message}`);
+  }
+
+  return false;
+}
+
 // Classify a query using the classifier backend
-async function classifyQuery(messages, userId = 'default') {
+// skipRealtimeCheck: set to true if request already has tools (e.g., from Clawdbot)
+async function classifyQuery(messages, userId = 'default', skipRealtimeCheck = false) {
   if (!config.smartRouter?.enabled) {
     return null;
   }
@@ -171,9 +251,40 @@ async function classifyQuery(messages, userId = 'default') {
 
     // Quick heuristics for obvious cases (skip LLM classification)
     const quickClassification = quickClassify(userContent);
+
+    // Skip realtime classification if request already has tools
+    // (client like Clawdbot already provides web_search and other tools)
+    if (skipRealtimeCheck && quickClassification?.category === 'realtime') {
+      log('debug', 'Skipping realtime classification - request already has tools');
+      // Return as conversation instead to use default routing
+      return {
+        ...quickClassification,
+        category: 'conversation',
+        note: 'Realtime skipped - request has existing tools'
+      };
+    }
+
     if (quickClassification && quickClassification.confidence > 0.9) {
       log('debug', 'Quick classification used', quickClassification);
       return quickClassification;
+    }
+
+    // Fast model-based realtime check (if quick classification didn't catch it)
+    // This uses a small fast model to detect queries needing current information
+    // Skip if request already has tools
+    if (!skipRealtimeCheck && quickClassification?.category !== 'realtime') {
+      const needsRealtime = await checkNeedsRealtimeInfo(userContent);
+      if (needsRealtime) {
+        log('info', 'Model-based realtime detection triggered');
+        return {
+          category: 'realtime',
+          confidence: 0.9,
+          complexity: 'moderate',
+          suggestedBackends: ['secretary', 'concierge'],
+          modelBased: true,
+          note: 'Model detected need for real-time information'
+        };
+      }
     }
 
     // Use classifier backend to classify
@@ -297,18 +408,55 @@ function quickClassify(content) {
     }
   }
 
+  // User dissatisfaction / retry patterns - they want us to search online
+  const dissatisfactionPatterns = [
+    /\b(that'?s?|you'?re?)\s+(wrong|incorrect|outdated|old|stale)\b/i,
+    /\b(check|look|search)\s+(online|the web|internet|it up)\b/i,
+    /\b(can you|please)\s+(verify|confirm|check|look up|search)\b/i,
+    /\b(actually|but)\s+.*(current|latest|now|today|recent)\b/i,
+    /\b(are you sure|is that right|is that correct)\b/i,
+    /\b(more recent|up to date|updated|current)\s+(info|information|data)\b/i,
+    /\b(google|search for|look up)\s+/i,
+    /\btry again\b/i,
+    /\b(that|this)\s+(info|information|data|answer)\s+.*(old|wrong|outdated)\b/i
+  ];
+
+  for (const pattern of dissatisfactionPatterns) {
+    if (pattern.test(content)) {
+      return {
+        category: 'realtime',
+        confidence: 0.95,
+        complexity: 'moderate',
+        suggestedBackends: ['secretary', 'concierge'],
+        quick: true,
+        note: 'User requesting updated info - will use web_search',
+        retryWithSearch: true
+      };
+    }
+  }
+
   // Real-time/current information patterns - requires web access
   // Check these BEFORE the short message heuristic
   const realtimePatterns = [
+    // Explicit weather queries
     /\b(current|right now|today'?s?|latest|live)\b.*\b(weather|temperature|forecast)\b/i,
     /\b(weather|temperature|forecast)\b.*\b(current|right now|today|now)\b/i,
     /\bwhat('s| is)\s+(the\s+)?weather\b/i,  // "what is the weather in X" - implicitly current
     /\bweather\s+(in|for|at)\s+\w/i,  // "weather in London" - implicitly current
+    // Implicit weather queries - questions that need weather data to answer
+    /\b(do i|should i|will i)\s+need\s+(an?\s+)?(umbrella|raincoat|jacket|coat|sweater)/i,  // "Do I need an umbrella?"
+    /\b(should i|do i need to)\s+(bring|wear|pack)\s+(an?\s+)?(jacket|coat|sweater|umbrella|shorts|sunscreen)/i,  // "Should I bring a jacket?"
+    /\b(is it|will it be|going to be)\s+(rain|snow|storm|sunny|cloudy|cold|hot|warm|humid)/i,  // "Is it raining in Paris?"
+    /\b(is it|will it)\s+(rain|snow|storm)ing\b/i,  // "Is it raining?"
+    /\b(how (cold|hot|warm|humid) is it)\b/i,  // "How cold is it?"
+    /\b(what should i wear|dress for)\b.*\b(in|to|at)\s+\w/i,  // "What should I wear in Seattle?"
+    // News/events/scores
     /\b(current|latest|today'?s?|live)\b.*\b(news|headlines|events|scores?)\b/i,
     /\b(stock|share) price\b/i,
     /\bwhat time is it\b/i,
     /\b(who won|score of)\b.*\b(game|match)\b/i,
     /\btrending\b/i,
+    // Service status
     /\bis\s+\w+\s+(down|up|working|online|offline)\b/i,  // "is Netflix down", "is AWS working"
     /\b(outage|downtime|status)\b.*\b(right now|currently|today)?\b/i,  // "Netflix outage", "AWS status"
     /\b(down|offline|not working)\s+(right now|currently|today)?\b/i  // "X is down right now"
@@ -694,6 +842,140 @@ const metrics = {
   tokens_by_backend: {}  // { backend: { input: N, output: N } }
 };
 
+// ============================================================================
+// MongoDB Storage - Persistent request/response logging
+// ============================================================================
+
+let mongoClient = null;
+let db = null;
+
+async function connectMongoDB() {
+  if (!config.storage?.enabled) return;
+
+  try {
+    mongoClient = new MongoClient(config.storage.uri);
+    await mongoClient.connect();
+    db = mongoClient.db(config.storage.database);
+
+    // Create indexes
+    const coll = db.collection(config.storage.collection);
+    await coll.createIndex({ timestamp: -1 });
+    await coll.createIndex({ 'routing.backend': 1 });
+    await coll.createIndex({ userId: 1 });
+
+    // TTL index for auto-deletion (only if retention.days > 0)
+    if (config.storage.retention?.days > 0) {
+      await coll.createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: config.storage.retention.days * 86400 }
+      );
+    }
+
+    log('info', 'MongoDB connected', { database: config.storage.database });
+  } catch (err) {
+    log('error', 'MongoDB connection failed', { error: err.message });
+  }
+}
+
+async function disconnectMongoDB() {
+  if (mongoClient) {
+    await mongoClient.close();
+    mongoClient = null;
+    db = null;
+    log('info', 'MongoDB disconnected');
+  }
+}
+
+function extractUserQuery(requestLog) {
+  try {
+    const body = JSON.parse(requestLog.request?.body || '{}');
+    const messages = body.messages || body.input || [];
+    // Handle string input (Responses API)
+    if (typeof messages === 'string') {
+      return messages.substring(0, 2000);
+    }
+    // Handle array of messages
+    const userMsgs = Array.isArray(messages)
+      ? messages.filter(m => m.role === 'user')
+      : [];
+    const lastUserMsg = userMsgs.pop();
+    if (!lastUserMsg) return '';
+    // Handle text content
+    const content = typeof lastUserMsg.content === 'string'
+      ? lastUserMsg.content
+      : (Array.isArray(lastUserMsg.content)
+        ? lastUserMsg.content.map(c => c.text || '').join('')
+        : '');
+    return content.substring(0, 2000);
+  } catch {
+    return '';
+  }
+}
+
+function extractResponse(requestLog) {
+  try {
+    const body = JSON.parse(requestLog.response?.body || '{}');
+    // OpenAI format
+    if (body.choices?.[0]?.message?.content) {
+      return body.choices[0].message.content.substring(0, 2000);
+    }
+    // Responses API format
+    if (body.output?.[0]?.content?.[0]?.text) {
+      return body.output[0].content[0].text.substring(0, 2000);
+    }
+    // Anthropic format
+    if (body.content?.[0]?.text) {
+      return body.content[0].text.substring(0, 2000);
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
+async function storeRequest(requestLog) {
+  if (!db) return;
+
+  const privacy = config.storage.privacy || {};
+
+  const doc = {
+    requestId: requestLog.id,
+    timestamp: new Date(requestLog.timestamp),
+    userId: requestLog.source,
+    endpoint: requestLog.endpoint,
+
+    routing: {
+      backend: requestLog.destination,
+      model: requestLog.model,
+      decision: requestLog.smartRouting?.decision,
+      classification: requestLog.smartRouting?.classification,
+      formatConversion: requestLog.formatConversion
+    },
+
+    timing: requestLog.timing,
+    tokens: requestLog.tokens,
+    status: requestLog.response?.status,
+
+    // Privacy-controlled fields
+    query: privacy.storeQueries ? extractUserQuery(requestLog) : '[redacted]',
+    response: privacy.storeResponses ? extractResponse(requestLog) : '[redacted]',
+
+    tools: {
+      injected: requestLog.webSearchToolInjected || false,
+      called: requestLog.toolCallsDetected || [],
+      autoSearch: requestLog.autoSearchTriggered || false
+    },
+
+    error: requestLog.error || null
+  };
+
+  try {
+    await db.collection(config.storage.collection).insertOne(doc);
+  } catch (err) {
+    log('warn', 'Failed to store request', { error: err.message });
+  }
+}
+
 // Load configuration
 function loadConfig() {
   try {
@@ -731,6 +1013,10 @@ function addRequestLog(entry) {
   if (requestLogs.length > MAX_LOGS) {
     requestLogs.pop();
   }
+  // Store to MongoDB (async, non-blocking)
+  storeRequest(entry).catch(err => {
+    log('warn', 'MongoDB store failed', { error: err.message });
+  });
 }
 
 // Extract tokens from response and update metrics
@@ -940,7 +1226,21 @@ async function performWebSearch(query) {
 
   try {
     // Check if this is a weather query - use wttr.in for weather
-    const isWeatherQuery = /\b(weather|temperature|forecast)\b/i.test(queryLower);
+    // Explicit weather words
+    const explicitWeatherPattern = /\b(weather|temperature|forecast|celsius|fahrenheit)\b/i;
+    // Implicit weather queries - things that need weather data to answer
+    const implicitWeatherPatterns = [
+      /\b(umbrella|raincoat|rain jacket)\b/i,                    // "Do I need an umbrella?"
+      /\b(is it|will it be|going to be)\s+(rain|snow|storm|sunny|cloudy|cold|hot|warm|humid)/i,  // "Is it raining?"
+      /\b(raining|snowing|storming)\b/i,                         // "Is it raining in Paris?"
+      /\b(should i|do i need)\s+(bring|wear|pack)\s+(jacket|coat|sweater|shorts|sunscreen)/i,  // "Should I bring a jacket?"
+      /\b(how (cold|hot|warm|humid)|what('s| is) the (temp|climate))\b/i,  // "How cold is it?"
+      /\b(dress for|what to wear)\b/i,                           // "What should I wear?"
+    ];
+
+    const isWeatherQuery = explicitWeatherPattern.test(queryLower) ||
+                           implicitWeatherPatterns.some(p => p.test(queryLower));
+
     if (isWeatherQuery) {
       // Try multiple patterns to extract location
       let location = null;
@@ -949,9 +1249,9 @@ async function performWebSearch(query) {
       const inPattern = queryLower.match(/(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/);
       if (inPattern) location = inPattern[1];
 
-      // Pattern 2: "<location> weather" at the end
+      // Pattern 2: "<location> weather" - location before weather word
       if (!location) {
-        const endPattern = queryLower.match(/(.+?)\s+(?:weather|temperature|forecast)(?:\?|$)/);
+        const endPattern = queryLower.match(/^(.+?)\s+(?:weather|temperature|forecast)\b/);
         if (endPattern) location = endPattern[1];
       }
 
@@ -961,10 +1261,28 @@ async function performWebSearch(query) {
         if (whatPattern) location = whatPattern[1];
       }
 
+      // Pattern 4: Implicit queries - "umbrella in <location>", "raining in <location>", etc.
+      if (!location) {
+        const implicitInPattern = queryLower.match(/(?:umbrella|rain|snow|cold|hot|warm|jacket|coat|wear)\s+(?:in|for|at|to)\s+(.+?)(?:\s+today|\s+tomorrow|\s+tonight|\?|$)/i);
+        if (implicitInPattern) location = implicitInPattern[1];
+      }
+
+      // Pattern 5: "Is it raining in <location>?" / "Will it rain in <location>?"
+      if (!location) {
+        const conditionInPattern = queryLower.match(/(?:is it|will it|going to)\s+(?:be\s+)?(?:rain|snow|storm|sunny|cloudy|cold|hot|warm)(?:ing|y)?\s+(?:in|at)\s+(.+?)(?:\?|$)/i);
+        if (conditionInPattern) location = conditionInPattern[1];
+      }
+
+      // Pattern 6: Location at the end - "Do I need an umbrella in Paris today?"
+      if (!location) {
+        const locationEndPattern = queryLower.match(/(?:in|at|to)\s+([A-Za-z][A-Za-z\s]+?)(?:\s+today|\s+tomorrow|\s+tonight|\s+this|\s+next|\?|$)/i);
+        if (locationEndPattern) location = locationEndPattern[1];
+      }
+
       // Clean up location - remove common words that aren't locations
       if (location) {
         location = location
-          .replace(/\b(current|right now|today|now|like|looking|please|the)\b/gi, '')
+          .replace(/\b(current|right now|today|now|like|looking|please|the|tomorrow|tonight|this|next|week|weekend)\b/gi, '')
           .replace(/[?!.,]/g, '')
           .trim();
       }
@@ -1016,6 +1334,184 @@ async function performWebSearch(query) {
         } catch (parseErr) {
           log('warn', `Failed to parse weather data: ${parseErr.message}`);
         }
+      }
+    }
+
+    // Check if this is a cryptocurrency price query - use CoinGecko API
+    const cryptoPatterns = [
+      /\b(bitcoin|btc)\b/i,
+      /\b(ethereum|eth)\b/i,
+      /\b(solana|sol)\b/i,
+      /\b(dogecoin|doge)\b/i,
+      /\b(cardano|ada)\b/i,
+      /\b(ripple|xrp)\b/i,
+      /\b(litecoin|ltc)\b/i,
+      /\b(polkadot|dot)\b/i
+    ];
+    const cryptoMap = {
+      'bitcoin': 'bitcoin', 'btc': 'bitcoin',
+      'ethereum': 'ethereum', 'eth': 'ethereum',
+      'solana': 'solana', 'sol': 'solana',
+      'dogecoin': 'dogecoin', 'doge': 'dogecoin',
+      'cardano': 'cardano', 'ada': 'cardano',
+      'ripple': 'ripple', 'xrp': 'ripple',
+      'litecoin': 'litecoin', 'ltc': 'litecoin',
+      'polkadot': 'polkadot', 'dot': 'polkadot'
+    };
+
+    const isCryptoQuery = /\b(price|worth|cost|value|trading)\b/i.test(queryLower) &&
+                          cryptoPatterns.some(p => p.test(queryLower));
+
+    if (isCryptoQuery) {
+      // Find which crypto was mentioned
+      let cryptoId = null;
+      for (const [key, value] of Object.entries(cryptoMap)) {
+        if (new RegExp(`\\b${key}\\b`, 'i').test(queryLower)) {
+          cryptoId = value;
+          break;
+        }
+      }
+
+      if (cryptoId) {
+        log('info', `Crypto price query detected for: ${cryptoId}`);
+
+        try {
+          // Use CoinGecko API (free, no auth required)
+          const cryptoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${cryptoId}&vs_currencies=usd,eur,gbp&include_24hr_change=true&include_market_cap=true`;
+          const cryptoResponse = await makeRequest(cryptoUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'LLM-Gateway/1.0'
+            }
+          });
+
+          if (cryptoResponse.status === 200) {
+            const data = JSON.parse(cryptoResponse.body);
+            const priceData = data[cryptoId];
+
+            if (priceData) {
+              const cryptoInfo = {
+                name: cryptoId.charAt(0).toUpperCase() + cryptoId.slice(1),
+                price_usd: priceData.usd,
+                price_eur: priceData.eur,
+                price_gbp: priceData.gbp,
+                change_24h: priceData.usd_24h_change?.toFixed(2) + '%',
+                market_cap_usd: priceData.usd_market_cap
+              };
+
+              log('info', `Crypto price retrieved for ${cryptoInfo.name}: $${cryptoInfo.price_usd}`);
+              return {
+                query,
+                type: 'crypto_price',
+                crypto: cryptoInfo,
+                timestamp: new Date().toISOString()
+              };
+            }
+          }
+        } catch (err) {
+          log('warn', `Failed to fetch crypto price: ${err.message}`);
+        }
+      }
+    }
+
+    // Check if this is a commodity/oil price query
+    const commodityPatterns = {
+      oil: /\b(oil|crude|brent|wti|petroleum)\b/i,
+      gold: /\b(gold|xau)\b/i,
+      silver: /\b(silver|xag)\b/i,
+      gas: /\b(natural\s*gas)\b/i
+    };
+
+    const isCommodityQuery = /\b(price|cost|trading|worth|how much)\b/i.test(queryLower);
+    let detectedCommodity = null;
+
+    for (const [commodity, pattern] of Object.entries(commodityPatterns)) {
+      if (pattern.test(queryLower) && isCommodityQuery) {
+        detectedCommodity = commodity;
+        break;
+      }
+    }
+
+    if (detectedCommodity) {
+      log('info', `Commodity price query detected for: ${detectedCommodity}`);
+
+      // Try to fetch from metals.live for gold/silver
+      if (detectedCommodity === 'gold' || detectedCommodity === 'silver') {
+        try {
+          const metalCode = detectedCommodity === 'gold' ? 'gold' : 'silver';
+          const metalUrl = `https://api.metals.live/v1/spot/${metalCode}`;
+          const metalResponse = await makeRequest(metalUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          if (metalResponse.status === 200) {
+            const data = JSON.parse(metalResponse.body);
+            const avgPrice = data.reduce((sum, item) => sum + parseFloat(item.price), 0) / data.length;
+
+            return {
+              query,
+              type: 'commodity_price',
+              commodity: {
+                name: detectedCommodity.charAt(0).toUpperCase() + detectedCommodity.slice(1),
+                price_usd: avgPrice.toFixed(2),
+                unit: 'per troy ounce',
+                sources: data.map(d => d.source).join(', ')
+              },
+              timestamp: new Date().toISOString()
+            };
+          }
+        } catch (err) {
+          log('warn', `Failed to fetch ${detectedCommodity} price: ${err.message}`);
+        }
+
+        // Fallback guidance for gold/silver when API fails
+        const metalName = detectedCommodity.charAt(0).toUpperCase() + detectedCommodity.slice(1);
+        return {
+          query,
+          type: 'commodity_guidance',
+          commodity: detectedCommodity,
+          message: `For current ${metalName} prices, please check:
+- Kitco: kitco.com
+- Bloomberg: bloomberg.com/markets/commodities
+- Trading Economics: tradingeconomics.com/commodity/${detectedCommodity}
+
+${metalName} is typically priced per troy ounce. Prices fluctuate based on market conditions.`,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      // For oil, return current market guidance (no free reliable API without auth)
+      if (detectedCommodity === 'oil') {
+        return {
+          query,
+          type: 'commodity_guidance',
+          commodity: detectedCommodity,
+          message: `For current crude oil prices, please check:
+- Bloomberg: bloomberg.com/energy
+- OilPrice.com: oilprice.com
+- Trading Economics: tradingeconomics.com/commodity/crude-oil
+
+Oil prices fluctuate daily. For real-time quotes, visit the sources above.`,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      // For natural gas
+      if (detectedCommodity === 'gas') {
+        return {
+          query,
+          type: 'commodity_guidance',
+          commodity: detectedCommodity,
+          message: `For current natural gas prices, please check:
+- Bloomberg: bloomberg.com/energy
+- Trading Economics: tradingeconomics.com/commodity/natural-gas
+- EIA: eia.gov/naturalgas/
+
+Natural gas prices vary by region and are quoted in $/MMBtu in the US.`,
+          timestamp: new Date().toISOString()
+        };
       }
     }
 
@@ -1162,12 +1658,42 @@ Source: isitdownrightnow.com
 Note: For the most accurate information, users can check ${searchResponse.checkUrl}`;
   }
 
+  // Handle cryptocurrency price data
+  if (searchResponse.type === 'crypto_price' && searchResponse.crypto) {
+    const c = searchResponse.crypto;
+    const marketCapFormatted = c.market_cap_usd
+      ? `$${(c.market_cap_usd / 1e9).toFixed(2)} billion`
+      : 'N/A';
+    return `Current price for ${c.name} (as of ${searchResponse.timestamp}):
+
+Price (USD): $${c.price_usd?.toLocaleString() || 'N/A'}
+Price (EUR): €${c.price_eur?.toLocaleString() || 'N/A'}
+Price (GBP): £${c.price_gbp?.toLocaleString() || 'N/A'}
+24h Change: ${c.change_24h || 'N/A'}
+Market Cap: ${marketCapFormatted}
+Source: CoinGecko`;
+  }
+
+  // Handle commodity price data (gold, silver)
+  if (searchResponse.type === 'commodity_price' && searchResponse.commodity) {
+    const c = searchResponse.commodity;
+    return `Current ${c.name} price (as of ${searchResponse.timestamp}):
+
+Price: $${c.price_usd} ${c.unit}
+Sources: ${c.sources}`;
+  }
+
+  // Handle commodity guidance (oil, natural gas - no free API)
+  if (searchResponse.type === 'commodity_guidance') {
+    return searchResponse.message;
+  }
+
   // Handle search message (when DuckDuckGo is blocked)
   if (searchResponse.message) {
     return searchResponse.message;
   }
 
-  if (searchResponse.results.length === 0) {
+  if (!searchResponse.results || searchResponse.results.length === 0) {
     return `No search results found for "${searchResponse.query}"`;
   }
 
@@ -1181,6 +1707,52 @@ Note: For the most accurate information, users can check ${searchResponse.checkU
   }
 
   return formatted;
+}
+
+// Detect if model response indicates it needs real-time data
+// Returns the topic to search for, or null if no search needed
+function detectNeedsWebSearch(responseContent) {
+  if (!responseContent) return null;
+
+  const content = responseContent.toLowerCase();
+
+  // Patterns that indicate the model couldn't provide current info
+  const needsSearchPatterns = [
+    { pattern: /i don'?t have (?:access to )?real[- ]?time/i, extract: true },
+    { pattern: /i can'?t (?:access|provide|check) (?:real[- ]?time|current|live)/i, extract: true },
+    { pattern: /my (?:knowledge|training|data) (?:cutoff|cut-off|ends)/i, extract: true },
+    { pattern: /as of my (?:last|knowledge) (?:update|cutoff)/i, extract: true },
+    { pattern: /i (?:don'?t|cannot) (?:browse|search|access) the (?:internet|web)/i, extract: true },
+    { pattern: /for (?:the )?(?:most )?(?:current|up[- ]?to[- ]?date|latest|real[- ]?time) (?:info|information|data)/i, extract: true },
+    { pattern: /(?:check|visit|use) (?:a )?(?:weather|news|status) (?:website|service|app)/i, extract: true },
+    { pattern: /i (?:recommend|suggest) (?:checking|visiting|using)/i, extract: true },
+    { pattern: /unable to (?:provide|give|access) (?:current|real[- ]?time|live)/i, extract: true }
+  ];
+
+  for (const { pattern } of needsSearchPatterns) {
+    if (pattern.test(content)) {
+      // Try to extract what they were asking about from the response
+      // Look for references to specific topics
+      const topicPatterns = [
+        /(?:weather|temperature|forecast)\s+(?:in|for|at)\s+([a-z\s]+?)(?:\.|,|$)/i,
+        /(?:status|outage|down)\s+(?:of|for)?\s*([a-z.]+?)(?:\.|,|$)/i,
+        /(?:current|latest|live)\s+([a-z\s]+?)(?:\s+(?:info|information|data|updates?))?(?:\.|,|$)/i,
+        /(?:check|visit)\s+(?:the\s+)?([a-z]+?)(?:\s+(?:website|status|page))?(?:\.|,|$)/i
+      ];
+
+      for (const topicPattern of topicPatterns) {
+        const match = responseContent.match(topicPattern);
+        if (match && match[1]) {
+          return match[1].trim();
+        }
+      }
+
+      // Generic fallback - return true but without specific topic
+      return 'current information';
+    }
+  }
+
+  return null;
 }
 
 // Execute a tool call and return results
@@ -1340,15 +1912,43 @@ function responsesToChatCompletions(body, isHermes = false) {
     }
   }
 
+  // Convert tools from Responses API format to Chat Completions format
+  // Responses API: {"type":"function","name":"x","description":"...","parameters":{}}
+  // Chat Completions: {"type":"function","function":{"name":"x","description":"...","parameters":{}}}
+  let convertedTools = undefined;
+  if (parsed.tools && Array.isArray(parsed.tools)) {
+    convertedTools = parsed.tools.map(tool => {
+      // If already in Chat Completions format (has function.name), pass through
+      if (tool.function?.name) {
+        return tool;
+      }
+      // Convert from Responses API format (name at top level)
+      if (tool.name) {
+        return {
+          type: 'function',
+          function: {
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters || { type: 'object', properties: {} }
+          }
+        };
+      }
+      return tool;
+    });
+  }
+
   return {
     model: parsed.model || 'llama-4-scout',
     messages: messages,
     max_tokens: parsed.max_output_tokens || parsed.max_tokens || 4096,
     temperature: parsed.temperature,
     top_p: parsed.top_p,
-    // Enable streaming - we'll convert the format
-    stream: true,
-    stop: parsed.stop
+    // Preserve stream setting from original request (defaults to true for format conversion)
+    stream: parsed.stream !== false,
+    stop: parsed.stop,
+    // Pass through converted tools if present
+    tools: convertedTools,
+    tool_choice: parsed.tool_choice
   };
 }
 
@@ -1928,9 +2528,13 @@ async function handleProxyRequest(req, res, body) {
     let backend;
     let routingDecision = null;
 
+    // Check if request already has tools defined (e.g., from Clawdbot)
+    // If so, skip realtime detection to avoid routing issues with large requests
+    const requestAlreadyHasTools = parsedRequestBody.tools && parsedRequestBody.tools.length > 0;
+
     if (config.smartRouter?.enabled && messages.length > 0) {
-      // Use smart router
-      const classification = await classifyQuery(messages, userId);
+      // Use smart router (but skip realtime detection if tools already present)
+      const classification = await classifyQuery(messages, userId, requestAlreadyHasTools);
 
       if (classification) {
         // Estimate context length
@@ -1938,6 +2542,16 @@ async function handleProxyRequest(req, res, body) {
 
         routingDecision = getRoutingRecommendation(classification, contextLength, userId);
         backend = routingDecision.backend;
+
+        // Route requests with tools to Anthropic (Claude actually uses tools reliably)
+        // Local models often ignore tool definitions
+        if (requestAlreadyHasTools && backend !== 'anthropic') {
+          log('info', `Routing to Anthropic - request has ${parsedRequestBody.tools.length} tools`, { requestId });
+          backend = 'anthropic';
+          routingDecision.backend = 'anthropic';
+          routingDecision.reason = 'tools present - routing to Anthropic';
+          routingDecision.toolsRouted = true;
+        }
 
         requestLog.smartRouting = {
           classification,
@@ -2067,8 +2681,12 @@ async function handleProxyRequest(req, res, body) {
     const modelSupportsTools = isLocalBackend || supportsToolCalling(modelName);
     let injectedWebSearchTool = false;
 
-    if (isRealtimeQuery && isLocalBackend) {
-      // Inject web_search tool into the request for local models
+    // Skip web_search injection if request already has tools defined
+    // (e.g., Clawdbot already provides its own web_search tool)
+    const requestHasTools = parsedBody.tools && parsedBody.tools.length > 0;
+
+    if (isRealtimeQuery && isLocalBackend && !requestHasTools) {
+      // Inject web_search tool into the request for local models (only if no tools present)
       if (!parsedBody.tools) {
         parsedBody.tools = [];
       }
@@ -2078,6 +2696,14 @@ async function handleProxyRequest(req, res, body) {
         injectedWebSearchTool = true;
         requestLog.webSearchToolInjected = true;
         log('info', `Injected web_search tool for realtime query`, { requestId, model: modelName });
+
+        // Force non-streaming for realtime queries so we can handle tool calls
+        // Tool call interception requires full response parsing
+        if (parsedBody.stream) {
+          parsedBody.stream = false;
+          requestLog.streamingDisabledForToolCall = true;
+          log('debug', `Disabled streaming for tool call handling`, { requestId });
+        }
       }
 
       // Add tool instructions to system message for tool-capable models
@@ -2110,6 +2736,15 @@ async function handleProxyRequest(req, res, body) {
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
       log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}`, { requestId });
+    } else if (isResponsesAPI && backend === 'anthropic') {
+      // OpenAI Responses API -> Anthropic conversion
+      // First convert to Chat Completions, then to Anthropic
+      const chatCompletions = responsesToChatCompletions(body, false);
+      requestBody = JSON.stringify(openAIToAnthropic(JSON.stringify(chatCompletions)));
+      targetPath = '/v1/messages';
+      requestLog.formatConversion = 'responses-to-anthropic';
+      needsResponseConversion = true;
+      log('debug', 'Converting Responses API to Anthropic format', { requestId });
     } else if (isAnthropicFormat && isLocalBackend) {
       // Anthropic -> OpenAI conversion
       requestBody = JSON.stringify(anthropicToOpenAI(body));
@@ -2281,6 +2916,64 @@ async function handleProxyRequest(req, res, body) {
         }
       } catch (e) {
         log('warn', `Tool call handling error: ${e.message}`, { requestId });
+      }
+    }
+
+    // Smart retry: If model indicates it needs real-time data and we haven't already done web search
+    if (!injectedWebSearchTool && proxyResponse.status === 200 && !isStreaming && isLocalBackend) {
+      try {
+        const responseParsed = JSON.parse(responseBody);
+        const modelContent = responseParsed.choices?.[0]?.message?.content || '';
+
+        const searchTopic = detectNeedsWebSearch(modelContent);
+        if (searchTopic) {
+          log('info', `Model indicated need for real-time data, auto-searching for: "${searchTopic}"`, { requestId });
+          requestLog.autoSearchTriggered = true;
+          requestLog.autoSearchTopic = searchTopic;
+
+          // Extract original user question for better search context
+          const userQuestion = parsedBody.messages?.filter(m => m.role === 'user').pop()?.content || searchTopic;
+          const searchQuery = typeof userQuestion === 'string' ? userQuestion : searchTopic;
+
+          // Perform web search
+          const searchResults = await performWebSearch(searchQuery);
+          const formattedResults = formatSearchResults(searchResults);
+
+          // Build follow-up request with search results
+          const searchFollowUpMessages = [
+            ...(parsedBody.messages || []),
+            {
+              role: 'assistant',
+              content: modelContent
+            },
+            {
+              role: 'user',
+              content: `Here is current information from a web search that might help:\n\n${formattedResults}\n\nBased on this information, please provide an updated answer to the original question.`
+            }
+          ];
+
+          const searchFollowUpBody = {
+            ...parsedBody,
+            messages: searchFollowUpMessages
+          };
+
+          log('info', `Making auto-search follow-up request`, { requestId });
+
+          const searchFollowUpResponse = await makeRequest(targetUrl, {
+            method: 'POST',
+            headers: requestHeaders
+          }, JSON.stringify(searchFollowUpBody), false);
+
+          if (searchFollowUpResponse.status === 200) {
+            responseBody = searchFollowUpResponse.body;
+            requestLog.autoSearchFollowUp = true;
+            log('info', `Auto-search follow-up completed successfully`, { requestId });
+          } else {
+            log('warn', `Auto-search follow-up failed: ${searchFollowUpResponse.status}`, { requestId });
+          }
+        }
+      } catch (e) {
+        log('warn', `Auto-search handling error: ${e.message}`, { requestId });
       }
     }
 
@@ -2840,6 +3533,148 @@ function handleDebugStats(req, res) {
   res.end(JSON.stringify(stats, null, 2));
 }
 
+// ============================================================================
+// MongoDB History Endpoints
+// ============================================================================
+
+// Debug endpoint: Query stored request history
+// GET /debug/history?limit=50&backend=anthropic&from=2026-01-01&to=2026-02-01&userId=clawdbot&category=realtime
+async function handleDebugHistory(req, res, query) {
+  if (!db) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Storage not enabled', logs: [] }));
+    return;
+  }
+
+  try {
+    const limit = Math.min(parseInt(query.get('limit')) || 50, 500);
+    const filter = {};
+
+    if (query.get('backend')) {
+      filter['routing.backend'] = query.get('backend');
+    }
+    if (query.get('userId')) {
+      filter.userId = query.get('userId');
+    }
+    if (query.get('category')) {
+      filter['routing.classification.category'] = query.get('category');
+    }
+    if (query.get('from') || query.get('to')) {
+      filter.timestamp = {};
+      if (query.get('from')) {
+        filter.timestamp.$gte = new Date(query.get('from'));
+      }
+      if (query.get('to')) {
+        filter.timestamp.$lte = new Date(query.get('to'));
+      }
+    }
+
+    const logs = await db.collection(config.storage.collection)
+      .find(filter)
+      .sort({ timestamp: -1 })
+      .limit(limit)
+      .toArray();
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ total: logs.length, logs }, null, 2));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+// Debug endpoint: Get single request by ID
+// GET /debug/history/:requestId
+async function handleDebugHistoryById(req, res, requestId) {
+  if (!db) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Storage not enabled' }));
+    return;
+  }
+
+  try {
+    const doc = await db.collection(config.storage.collection)
+      .findOne({ requestId: requestId });
+
+    if (!doc) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(doc, null, 2));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
+// Debug endpoint: Aggregated analytics
+// GET /debug/analytics?days=7
+async function handleDebugAnalytics(req, res, query) {
+  if (!db) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Storage not enabled' }));
+    return;
+  }
+
+  try {
+    const days = parseInt(query.get('days')) || 7;
+    const since = new Date(Date.now() - days * 86400000);
+
+    const pipeline = [
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $group: {
+          _id: {
+            backend: '$routing.backend',
+            day: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } }
+          },
+          count: { $sum: 1 },
+          tokens: { $sum: '$tokens.total' },
+          avgLatency: { $avg: '$timing.totalMs' },
+          errors: { $sum: { $cond: [{ $ne: ['$error', null] }, 1, 0] } }
+        }
+      },
+      { $sort: { '_id.day': 1, '_id.backend': 1 } }
+    ];
+
+    const results = await db.collection(config.storage.collection)
+      .aggregate(pipeline).toArray();
+
+    // Also get category breakdown
+    const categoryPipeline = [
+      { $match: { timestamp: { $gte: since } } },
+      {
+        $group: {
+          _id: '$routing.classification.category',
+          count: { $sum: 1 }
+        }
+      }
+    ];
+
+    const categories = await db.collection(config.storage.collection)
+      .aggregate(categoryPipeline).toArray();
+
+    // Get total count
+    const totalCount = await db.collection(config.storage.collection)
+      .countDocuments({ timestamp: { $gte: since } });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      period: `${days} days`,
+      since: since.toISOString(),
+      totalRequests: totalCount,
+      byBackendAndDay: results,
+      byCategory: categories
+    }, null, 2));
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
+}
+
 // Debug endpoint: Token usage statistics
 function handleDebugTokens(req, res) {
   const logs = requestLogs.slice(0, 1000);
@@ -3143,6 +3978,23 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    // MongoDB history endpoints
+    if (pathname === '/debug/history') {
+      await handleDebugHistory(req, res, query);
+      return;
+    }
+
+    if (pathname.startsWith('/debug/history/')) {
+      const requestId = pathname.replace('/debug/history/', '');
+      await handleDebugHistoryById(req, res, requestId);
+      return;
+    }
+
+    if (pathname === '/debug/analytics') {
+      await handleDebugAnalytics(req, res, query);
+      return;
+    }
+
     // Dashboard - serve static files
     if (pathname.startsWith('/dashboard')) {
       const filePath = pathname.replace('/dashboard', '') || '/';
@@ -3162,9 +4014,14 @@ const server = http.createServer((req, res) => {
           classifierBackend: config.smartRouter?.classifierBackend,
           totalDecisions: routerHistory.decisions.length
         },
+        storage: {
+          enabled: config.storage?.enabled || false,
+          database: config.storage?.database
+        },
         endpoints: {
           proxy: '/v1/chat/completions, /v1/messages, /v1/responses',
           debug: '/debug/logs, /debug/health, /debug/compare, /debug/config, /debug/router, /debug/models, /debug/switch, /debug/stats, /debug/tokens',
+          history: '/debug/history, /debug/history/:id, /debug/analytics',
           dashboard: '/dashboard',
           metrics: ':9090/metrics'
         },
@@ -3252,12 +4109,22 @@ const metricsServer = http.createServer((req, res) => {
 loadConfig();
 loadRouterHistory();
 
+// Connect to MongoDB (async, non-blocking startup)
+connectMongoDB().then(() => {
+  if (config.storage?.enabled) {
+    log('info', `MongoDB storage: enabled (${config.storage.database})`);
+  }
+}).catch(err => {
+  log('warn', `MongoDB connection failed: ${err.message}`);
+});
+
 server.listen(PROXY_PORT, '0.0.0.0', () => {
   log('info', `LLM Debug Proxy listening on port ${PROXY_PORT}`);
   log('info', `Mode: ${config.mode}`);
   log('info', `Backends: ${Object.keys(config.backends).join(', ')}`);
   log('info', `Default backend: ${config.defaultBackend}`);
   log('info', `Smart router: ${config.smartRouter?.enabled ? 'enabled' : 'disabled'}`);
+  log('info', `Storage: ${config.storage?.enabled ? 'enabled' : 'disabled'}`);
   log('info', `Anthropic API key: ${ANTHROPIC_API_KEY ? 'set' : 'not set'}`);
 });
 
@@ -3266,20 +4133,15 @@ metricsServer.listen(METRICS_PORT, '0.0.0.0', () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  log('info', 'Received SIGTERM, shutting down...');
+async function shutdown(signal) {
+  log('info', `Received ${signal}, shutting down...`);
+  await disconnectMongoDB();
   server.close(() => {
     metricsServer.close(() => {
       process.exit(0);
     });
   });
-});
+}
 
-process.on('SIGINT', () => {
-  log('info', 'Received SIGINT, shutting down...');
-  server.close(() => {
-    metricsServer.close(() => {
-      process.exit(0);
-    });
-  });
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
