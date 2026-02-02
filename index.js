@@ -308,6 +308,32 @@ function quickClassify(content) {
     };
   }
 
+  // Real-time/current information patterns - requires web access
+  const realtimePatterns = [
+    /\b(current|right now|today'?s?|latest|live)\b.*\b(weather|temperature|forecast)\b/i,
+    /\b(weather|temperature|forecast)\b.*\b(current|right now|today|now)\b/i,
+    /\bwhat('s| is)\s+(the\s+)?weather\b/i,  // "what is the weather in X" - implicitly current
+    /\bweather\s+(in|for|at)\s+\w/i,  // "weather in London" - implicitly current
+    /\b(current|latest|today'?s?|live)\b.*\b(news|headlines|events|scores?)\b/i,
+    /\b(stock|share) price\b/i,
+    /\bwhat time is it\b/i,
+    /\b(who won|score of)\b.*\b(game|match)\b/i,
+    /\btrending\b/i
+  ];
+
+  for (const pattern of realtimePatterns) {
+    if (pattern.test(content)) {
+      return {
+        category: 'realtime',
+        confidence: 0.95,
+        complexity: 'moderate',
+        suggestedBackends: ['secretary', 'concierge'],  // Local models with web_search tool support
+        quick: true,
+        note: 'Requires real-time web access - using web_search tool'
+      };
+    }
+  }
+
   // Research/factual patterns
   const researchPatterns = [
     /\b(what is|who is|when did|where is|how does .* work)\b/i,
@@ -868,6 +894,239 @@ function anthropicResponseToOpenAI(response, model) {
 function isHermesModel(model) {
   const modelLower = (model || '').toLowerCase();
   return modelLower.includes('hermes');
+}
+
+// Check if model supports tool calling
+function supportsToolCalling(model) {
+  const modelLower = (model || '').toLowerCase();
+  return modelLower.includes('hermes') ||
+         modelLower.includes('qwen') ||
+         modelLower.includes('llama') ||
+         modelLower.includes('mistral');
+}
+
+// ============================================================================
+// Web Search Tool - DuckDuckGo Integration
+// ============================================================================
+
+// Web search tool definition
+const WEB_SEARCH_TOOL = {
+  type: 'function',
+  function: {
+    name: 'web_search',
+    description: 'Search the web for current information. Use this for weather, news, current events, stock prices, or any query requiring up-to-date information.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query'
+        }
+      },
+      required: ['query']
+    }
+  }
+};
+
+// Perform web search using DuckDuckGo HTML
+async function performWebSearch(query) {
+  log('info', `Performing web search: "${query}"`);
+  const queryLower = query.toLowerCase();
+
+  try {
+    // Check if this is a weather query - use wttr.in for weather
+    const isWeatherQuery = /\b(weather|temperature|forecast)\b/i.test(queryLower);
+    if (isWeatherQuery) {
+      // Try multiple patterns to extract location
+      let location = null;
+
+      // Pattern 1: "weather in <location>" or "temperature in <location>"
+      const inPattern = queryLower.match(/(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/);
+      if (inPattern) location = inPattern[1];
+
+      // Pattern 2: "<location> weather" at the end
+      if (!location) {
+        const endPattern = queryLower.match(/(.+?)\s+(?:weather|temperature|forecast)(?:\?|$)/);
+        if (endPattern) location = endPattern[1];
+      }
+
+      // Pattern 3: "what is the weather in <location>"
+      if (!location) {
+        const whatPattern = queryLower.match(/what(?:'s| is| the)?\s+(?:the\s+)?(?:current\s+)?(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/i);
+        if (whatPattern) location = whatPattern[1];
+      }
+
+      // Clean up location - remove common words that aren't locations
+      if (location) {
+        location = location
+          .replace(/\b(current|right now|today|now|like|looking|please|the)\b/gi, '')
+          .replace(/[?!.,]/g, '')
+          .trim();
+      }
+
+      // Default to New York if no location found
+      if (!location || location.length < 2) location = 'New York';
+
+      log('info', `Weather query detected, using wttr.in for: ${location}`);
+
+      const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
+      const weatherResponse = await makeRequest(weatherUrl, {
+        method: 'GET',
+        headers: { 'User-Agent': 'curl/7.68.0' }
+      });
+
+      if (weatherResponse.status === 200) {
+        try {
+          const weatherData = JSON.parse(weatherResponse.body);
+          const current = weatherData.current_condition?.[0];
+          const area = weatherData.nearest_area?.[0];
+
+          if (current) {
+            const weatherInfo = {
+              location: area?.areaName?.[0]?.value || location,
+              region: area?.region?.[0]?.value || '',
+              country: area?.country?.[0]?.value || '',
+              temperature_c: current.temp_C,
+              temperature_f: current.temp_F,
+              feels_like_c: current.FeelsLikeC,
+              feels_like_f: current.FeelsLikeF,
+              humidity: current.humidity,
+              description: current.weatherDesc?.[0]?.value || '',
+              wind_mph: current.windspeedMiles,
+              wind_kph: current.windspeedKmph,
+              wind_dir: current.winddir16Point,
+              visibility_km: current.visibility,
+              uv_index: current.uvIndex,
+              observation_time: current.observation_time
+            };
+
+            log('info', `Weather data retrieved for ${weatherInfo.location}`);
+            return {
+              query,
+              type: 'weather',
+              weather: weatherInfo,
+              timestamp: new Date().toISOString()
+            };
+          }
+        } catch (parseErr) {
+          log('warn', `Failed to parse weather data: ${parseErr.message}`);
+        }
+      }
+    }
+
+    // For non-weather queries, return a helpful message since DuckDuckGo blocks automated requests
+    log('info', `General search query - returning guidance`);
+    return {
+      query,
+      type: 'search',
+      results: [],
+      message: 'Web search is currently limited. For real-time information, please check news websites, weather services, or search engines directly.',
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (err) {
+    log('error', `Web search error: ${err.message}`);
+    return { error: err.message, results: [] };
+  }
+}
+
+// Parse DuckDuckGo HTML search results
+function parseDuckDuckGoResults(html) {
+  const results = [];
+
+  // Match result blocks - DuckDuckGo uses class="result__a" for links and class="result__snippet" for descriptions
+  const resultPattern = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)/gi;
+
+  let match;
+  while ((match = resultPattern.exec(html)) !== null && results.length < 5) {
+    const url = match[1];
+    const title = match[2].trim();
+    const snippet = match[3].trim().replace(/&[^;]+;/g, ' ').replace(/\s+/g, ' ');
+
+    if (title && snippet && !url.includes('duckduckgo.com')) {
+      results.push({ title, url, snippet });
+    }
+  }
+
+  // Fallback: try simpler pattern if no results
+  if (results.length === 0) {
+    const simplePattern = /<a[^>]*class="[^"]*result[^"]*"[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]+)<\/a>/gi;
+    while ((match = simplePattern.exec(html)) !== null && results.length < 5) {
+      const url = match[1];
+      const title = match[2].trim();
+      if (title && !url.includes('duckduckgo.com')) {
+        results.push({ title, url, snippet: '' });
+      }
+    }
+  }
+
+  return results;
+}
+
+// Format search results for LLM context
+function formatSearchResults(searchResponse) {
+  if (searchResponse.error) {
+    return `Web search failed: ${searchResponse.error}`;
+  }
+
+  // Handle weather data
+  if (searchResponse.type === 'weather' && searchResponse.weather) {
+    const w = searchResponse.weather;
+    return `Current weather data for ${w.location}${w.region ? ', ' + w.region : ''}${w.country ? ', ' + w.country : ''} (as of ${searchResponse.timestamp}):
+
+Temperature: ${w.temperature_c}°C (${w.temperature_f}°F)
+Feels like: ${w.feels_like_c}°C (${w.feels_like_f}°F)
+Conditions: ${w.description}
+Humidity: ${w.humidity}%
+Wind: ${w.wind_mph} mph (${w.wind_kph} km/h) from ${w.wind_dir}
+Visibility: ${w.visibility_km} km
+UV Index: ${w.uv_index}
+Observation time: ${w.observation_time} UTC`;
+  }
+
+  // Handle search message (when DuckDuckGo is blocked)
+  if (searchResponse.message) {
+    return searchResponse.message;
+  }
+
+  if (searchResponse.results.length === 0) {
+    return `No search results found for "${searchResponse.query}"`;
+  }
+
+  let formatted = `Web search results for "${searchResponse.query}" (${searchResponse.timestamp}):\n\n`;
+
+  for (let i = 0; i < searchResponse.results.length; i++) {
+    const r = searchResponse.results[i];
+    formatted += `${i + 1}. ${r.title}\n`;
+    if (r.snippet) formatted += `   ${r.snippet}\n`;
+    formatted += `   URL: ${r.url}\n\n`;
+  }
+
+  return formatted;
+}
+
+// Execute a tool call and return results
+async function executeToolCall(toolCall) {
+  const name = toolCall.function?.name || toolCall.name;
+  let args = {};
+
+  try {
+    args = typeof toolCall.function?.arguments === 'string'
+      ? JSON.parse(toolCall.function.arguments)
+      : (toolCall.function?.arguments || toolCall.arguments || {});
+  } catch (e) {
+    log('warn', `Failed to parse tool arguments: ${e.message}`);
+  }
+
+  log('info', `Executing tool: ${name}`, args);
+
+  switch (name) {
+    case 'web_search':
+      const searchResults = await performWebSearch(args.query);
+      return formatSearchResults(searchResults);
+    default:
+      return `Unknown tool: ${name}`;
+  }
 }
 
 // Format tools for Hermes model (XML format in system prompt)
@@ -1723,6 +1982,48 @@ async function handleProxyRequest(req, res, body) {
     const isHermes = isHermesModel(modelName);
     requestLog.isHermes = isHermes;
 
+    // Check if this is a realtime query that needs web search tool injection
+    const isRealtimeQuery = routingDecision?.classification?.category === 'realtime';
+    // For local backends, assume tool support if model name is generic or matches known tool-capable models
+    // All our local backends run models that support tool calling (Llama, Qwen, etc.)
+    const modelSupportsTools = isLocalBackend || supportsToolCalling(modelName);
+    let injectedWebSearchTool = false;
+
+    if (isRealtimeQuery && isLocalBackend) {
+      // Inject web_search tool into the request for local models
+      if (!parsedBody.tools) {
+        parsedBody.tools = [];
+      }
+      // Add web_search tool if not already present
+      if (!parsedBody.tools.some(t => t.function?.name === 'web_search')) {
+        parsedBody.tools.push(WEB_SEARCH_TOOL);
+        injectedWebSearchTool = true;
+        requestLog.webSearchToolInjected = true;
+        log('info', `Injected web_search tool for realtime query`, { requestId, model: modelName });
+      }
+
+      // Add tool instructions to system message for tool-capable models
+      if (parsedBody.messages) {
+        const toolPrompt = isHermes
+          ? formatToolsForHermes([WEB_SEARCH_TOOL])
+          : '\n\nYou have access to a web_search tool. When the user asks about current events, weather, news, stock prices, or anything requiring up-to-date information, you MUST use the web_search tool by including a tool_call in your response. Call the tool with the appropriate search query.';
+
+        const systemIdx = parsedBody.messages.findIndex(m => m.role === 'system');
+        if (systemIdx >= 0) {
+          parsedBody.messages[systemIdx].content += toolPrompt;
+        } else {
+          parsedBody.messages.unshift({
+            role: 'system',
+            content: 'You are a helpful assistant.' + toolPrompt
+          });
+        }
+      }
+
+      // Update body and requestBody with injected tools
+      body = JSON.stringify(parsedBody);
+      requestBody = body;  // Also update requestBody since it was set before tool injection
+    }
+
     // Convert formats if needed
     if (isResponsesAPI && isLocalBackend) {
       // OpenAI Responses API -> Chat Completions conversion
@@ -1825,6 +2126,83 @@ async function handleProxyRequest(req, res, body) {
         log('debug', 'Converted Anthropic response to OpenAI format', { requestId });
       } catch (e) {
         log('warn', 'Failed to convert response format', { requestId, error: e.message });
+      }
+    }
+
+    // Handle tool calls if we injected web_search tool and got a successful response
+    if (injectedWebSearchTool && proxyResponse.status === 200 && !isStreaming) {
+      try {
+        const responseParsed = JSON.parse(responseBody);
+        let toolCalls = [];
+        let contentBeforeToolCall = '';
+
+        // Check for OpenAI-style tool calls
+        const choice = responseParsed.choices?.[0];
+        if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+          toolCalls = choice.message.tool_calls;
+          contentBeforeToolCall = choice.message.content || '';
+        }
+        // Check for Hermes-style tool calls in content
+        else if (choice?.message?.content) {
+          const hermesResult = parseHermesToolCalls(choice.message.content);
+          if (hermesResult.toolCalls.length > 0) {
+            toolCalls = hermesResult.toolCalls;
+            contentBeforeToolCall = hermesResult.cleanContent;
+          }
+        }
+
+        // Execute tool calls and continue conversation
+        if (toolCalls.length > 0) {
+          log('info', `Detected ${toolCalls.length} tool call(s), executing...`, { requestId });
+          requestLog.toolCallsDetected = toolCalls.map(tc => tc.function?.name);
+
+          const toolResults = [];
+          for (const tc of toolCalls) {
+            const result = await executeToolCall(tc);
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: 'tool',
+              content: result
+            });
+          }
+
+          // Build follow-up request with tool results
+          const followUpMessages = [
+            ...(parsedBody.messages || []),
+            {
+              role: 'assistant',
+              content: contentBeforeToolCall || null,
+              tool_calls: toolCalls
+            },
+            ...toolResults
+          ];
+
+          // Remove tools from follow-up to prevent model from making more tool calls
+          // The model should use the tool results to generate a final response
+          const { tools: _, tool_choice: __, ...restOfParsedBody } = parsedBody;
+          const followUpBody = {
+            ...restOfParsedBody,
+            messages: followUpMessages
+          };
+
+          log('info', `Making follow-up request with tool results`, { requestId });
+
+          // Make follow-up request
+          const followUpResponse = await makeRequest(targetUrl, {
+            method: 'POST',
+            headers: requestHeaders
+          }, JSON.stringify(followUpBody), false);
+
+          if (followUpResponse.status === 200) {
+            responseBody = followUpResponse.body;
+            requestLog.toolCallFollowUp = true;
+            log('info', `Tool call follow-up completed`, { requestId });
+          } else {
+            log('warn', `Tool call follow-up failed: ${followUpResponse.status}`, { requestId });
+          }
+        }
+      } catch (e) {
+        log('warn', `Tool call handling error: ${e.message}`, { requestId });
       }
     }
 
