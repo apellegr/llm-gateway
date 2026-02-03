@@ -1219,6 +1219,46 @@ const WEB_SEARCH_TOOL = {
   }
 };
 
+// Get current time tool definition
+const GET_CURRENT_TIME_TOOL = {
+  type: 'function',
+  function: {
+    name: 'get_current_time',
+    description: 'Get the current date and time. Use this when the user asks what time it is or needs the current date.',
+    parameters: {
+      type: 'object',
+      properties: {
+        timezone: {
+          type: 'string',
+          description: 'Optional timezone (e.g., "America/New_York", "Europe/London"). Defaults to UTC if not specified.'
+        }
+      }
+    }
+  }
+};
+
+// Calculator tool definition
+const CALCULATOR_TOOL = {
+  type: 'function',
+  function: {
+    name: 'calculator',
+    description: 'Perform mathematical calculations. Use this for arithmetic, percentages, unit conversions, or any math the user asks about.',
+    parameters: {
+      type: 'object',
+      properties: {
+        expression: {
+          type: 'string',
+          description: 'The mathematical expression to evaluate (e.g., "127 * 43", "15% of 200", "sqrt(144)")'
+        }
+      },
+      required: ['expression']
+    }
+  }
+};
+
+// All tools available for local models
+const LOCAL_MODEL_TOOLS = [WEB_SEARCH_TOOL, GET_CURRENT_TIME_TOOL, CALCULATOR_TOOL];
+
 // Perform web search using DuckDuckGo HTML
 async function performWebSearch(query) {
   log('info', `Performing web search: "${query}"`);
@@ -1774,6 +1814,62 @@ async function executeToolCall(toolCall) {
     case 'web_search':
       const searchResults = await performWebSearch(args.query);
       return formatSearchResults(searchResults);
+
+    case 'get_current_time':
+      try {
+        const now = new Date();
+        const timezone = args.timezone || 'UTC';
+        const options = {
+          timeZone: timezone,
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short'
+        };
+        const formatted = now.toLocaleString('en-US', options);
+        return `Current date and time: ${formatted}`;
+      } catch (e) {
+        // Invalid timezone, fall back to UTC
+        return `Current date and time (UTC): ${new Date().toISOString()}`;
+      }
+
+    case 'calculator':
+      try {
+        const expression = args.expression || '';
+        // Safe math evaluation - only allow numbers and basic operators
+        // Replace common math functions with Math equivalents
+        let safeExpr = expression
+          .replace(/sqrt\(/gi, 'Math.sqrt(')
+          .replace(/pow\(/gi, 'Math.pow(')
+          .replace(/abs\(/gi, 'Math.abs(')
+          .replace(/round\(/gi, 'Math.round(')
+          .replace(/floor\(/gi, 'Math.floor(')
+          .replace(/ceil\(/gi, 'Math.ceil(')
+          .replace(/sin\(/gi, 'Math.sin(')
+          .replace(/cos\(/gi, 'Math.cos(')
+          .replace(/tan\(/gi, 'Math.tan(')
+          .replace(/log\(/gi, 'Math.log(')
+          .replace(/exp\(/gi, 'Math.exp(')
+          .replace(/pi/gi, 'Math.PI')
+          .replace(/%\s*of\s*/gi, '/100*')  // "15% of 200" -> "15/100*200"
+          .replace(/(\d+)\s*%/g, '($1/100)');  // "15%" -> "(15/100)"
+
+        // Validate expression contains only safe characters
+        if (!/^[0-9+\-*/().Math\s,a-z]+$/i.test(safeExpr)) {
+          return `Error: Invalid expression. Only numbers and basic math operators are allowed.`;
+        }
+
+        // Evaluate using Function constructor (safer than eval)
+        const result = new Function(`return ${safeExpr}`)();
+        return `${expression} = ${result}`;
+      } catch (e) {
+        return `Error calculating "${args.expression}": ${e.message}`;
+      }
+
     default:
       return `Unknown tool: ${name}`;
   }
@@ -2674,58 +2770,40 @@ async function handleProxyRequest(req, res, body) {
     const isHermes = isHermesModel(modelName);
     requestLog.isHermes = isHermes;
 
-    // Check if this is a realtime query that needs web search tool injection
+    // Check if this is a realtime query (for logging purposes)
     const isRealtimeQuery = routingDecision?.classification?.category === 'realtime';
-    // For local backends, assume tool support if model name is generic or matches known tool-capable models
-    // All our local backends run models that support tool calling (Llama, Qwen, etc.)
+    // For local backends, assume tool support - all our local models support tool calling
     const modelSupportsTools = isLocalBackend || supportsToolCalling(modelName);
-    let injectedWebSearchTool = false;
+    let injectedTools = false;
 
-    // Skip web_search injection if request already has tools defined
-    // (e.g., Clawdbot already provides its own web_search tool)
+    // Skip tool injection if request already has tools defined
+    // (e.g., Clawdbot already provides its own tools)
     const requestHasTools = parsedBody.tools && parsedBody.tools.length > 0;
 
-    if (isRealtimeQuery && isLocalBackend && !requestHasTools) {
-      // Inject web_search tool into the request for local models (only if no tools present)
-      if (!parsedBody.tools) {
-        parsedBody.tools = [];
-      }
-      // Add web_search tool if not already present
-      if (!parsedBody.tools.some(t => t.function?.name === 'web_search')) {
-        parsedBody.tools.push(WEB_SEARCH_TOOL);
-        injectedWebSearchTool = true;
-        requestLog.webSearchToolInjected = true;
-        log('info', `Injected web_search tool for realtime query`, { requestId, model: modelName });
+    // ALWAYS inject tools for local backends (let the model decide when to use them)
+    // This enables tool calling for weather, news, calculations, etc.
+    if (isLocalBackend && !requestHasTools) {
+      // Inject all available tools for local models
+      parsedBody.tools = [...LOCAL_MODEL_TOOLS];
+      injectedTools = true;
+      requestLog.toolsInjected = LOCAL_MODEL_TOOLS.map(t => t.function.name);
+      log('info', `Injected ${LOCAL_MODEL_TOOLS.length} tools for local backend`, {
+        requestId,
+        model: modelName,
+        tools: LOCAL_MODEL_TOOLS.map(t => t.function.name)
+      });
 
-        // Force non-streaming for realtime queries so we can handle tool calls
-        // Tool call interception requires full response parsing
-        if (parsedBody.stream) {
-          parsedBody.stream = false;
-          requestLog.streamingDisabledForToolCall = true;
-          log('debug', `Disabled streaming for tool call handling`, { requestId });
-        }
-      }
-
-      // Add tool instructions to system message for tool-capable models
-      if (parsedBody.messages) {
-        const toolPrompt = isHermes
-          ? formatToolsForHermes([WEB_SEARCH_TOOL])
-          : '\n\nYou have access to a web_search tool. When the user asks about current events, weather, news, stock prices, or anything requiring up-to-date information, you MUST use the web_search tool by including a tool_call in your response. Call the tool with the appropriate search query.';
-
-        const systemIdx = parsedBody.messages.findIndex(m => m.role === 'system');
-        if (systemIdx >= 0) {
-          parsedBody.messages[systemIdx].content += toolPrompt;
-        } else {
-          parsedBody.messages.unshift({
-            role: 'system',
-            content: 'You are a helpful assistant.' + toolPrompt
-          });
-        }
+      // Force non-streaming so we can handle tool calls
+      // Tool call interception requires full response parsing
+      if (parsedBody.stream) {
+        parsedBody.stream = false;
+        requestLog.streamingDisabledForToolCall = true;
+        log('debug', `Disabled streaming for tool call handling`, { requestId });
       }
 
       // Update body and requestBody with injected tools
       body = JSON.stringify(parsedBody);
-      requestBody = body;  // Also update requestBody since it was set before tool injection
+      requestBody = body;
     }
 
     // Convert formats if needed
@@ -2842,8 +2920,8 @@ async function handleProxyRequest(req, res, body) {
       }
     }
 
-    // Handle tool calls if we injected web_search tool and got a successful response
-    if (injectedWebSearchTool && proxyResponse.status === 200 && !isStreaming) {
+    // Handle tool calls if we injected tools and got a successful response
+    if (injectedTools && proxyResponse.status === 200 && !isStreaming) {
       try {
         const responseParsed = JSON.parse(responseBody);
         let toolCalls = [];
@@ -2920,7 +2998,7 @@ async function handleProxyRequest(req, res, body) {
     }
 
     // Smart retry: If model indicates it needs real-time data and we haven't already done web search
-    if (!injectedWebSearchTool && proxyResponse.status === 200 && !isStreaming && isLocalBackend) {
+    if (!injectedTools && proxyResponse.status === 200 && !isStreaming && isLocalBackend) {
       try {
         const responseParsed = JSON.parse(responseBody);
         const modelContent = responseParsed.choices?.[0]?.message?.content || '';

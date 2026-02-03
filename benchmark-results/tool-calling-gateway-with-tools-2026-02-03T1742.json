@@ -1,0 +1,739 @@
+{
+  "config": {
+    "gateway": "http://localhost:28080",
+    "model": "gateway-with-tools",
+    "timestamp": "2026-02-03T17:42:22.538Z",
+    "limitPerCategory": 10
+  },
+  "summary": {
+    "total": 38,
+    "toolRequired": {
+      "correct": 0,
+      "total": 30
+    },
+    "noToolRequired": {
+      "correct": 8,
+      "total": 8
+    },
+    "toolLeaks": 0,
+    "avgLatency": 6339,
+    "byCategory": {
+      "weather": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 0,
+        "avgLatency": 10447
+      },
+      "news": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 0,
+        "avgLatency": 5049
+      },
+      "financial": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 0,
+        "avgLatency": 1906
+      },
+      "no_tools": {
+        "total": 8,
+        "correct": 8,
+        "toolLeaks": 0,
+        "avgLatency": 8358
+      }
+    },
+    "scores": {
+      "toolUsage": "0.0",
+      "controlGroup": "30.0",
+      "leakPenalty": "0.0",
+      "overall": "30.0"
+    }
+  },
+  "results": [
+    {
+      "category": "weather",
+      "prompt": "What's the weather like in New York City right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 9983,
+        "content": "Unfortunately, I'm a large language model, I don't have real-time access to current weather conditions. My previous response was an error on my part.\n\nIf you want to know the current weather in New York City, I recommend checking a weather website or app, such as AccuWeather, Weather.com, or the National Weather Service (NWS), for the most up-to-date and accurate information.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Will it rain in London tomorrow?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 13245,
+        "content": "Based on the current weather data, it appears that it will rain in London tomorrow. The current conditions show rain, and the observation time indicates that it has rained recently. However, please note that weather forecasts are subject to change and may not be accurate.\n\nFor the most up-to-date and accurate weather forecast, I recommend checking a reliable weather website or app, such as the BBC Weather or Met Office, for the latest information on tomorrow's weather in London.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the current temperature in Tokyo?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 9109,
+        "content": "Unfortunately, I'm a large language model, I don't have real-time access to current weather conditions. The text I provided earlier was a fictional example.\n\nTo get the current temperature in Tokyo, I recommend checking a weather website or app, such as AccuWeather, Weather.com, or the Japan Meteorological Agency (JMA) website, which provides up-to-date weather forecasts and conditions for Tokyo and other locations in Japan.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Do I need an umbrella today in Seattle?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 10995,
+        "content": "Based on the current weather conditions in Seattle, it appears that it is misty with a high humidity of 100%. While it's not raining, the misty and humid conditions may make it feel quite wet and potentially require an umbrella to stay dry. However, it's always a good idea to check the forecast again closer to the time you plan to be outside to get the most up-to-date information.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the weather forecast for Paris this weekend?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 19679,
+        "content": "Unfortunately, I'm a large language model, I don't have real-time access to current weather conditions or forecasts. My previous response was an error on my part.\n\nHowever, I can suggest some ways for you to find the weather forecast for Paris this weekend:\n\n1. Check online weather websites: You can check websites like AccuWeather, Weather.com, or the National Weather Service (Météo-France) for the latest weather forecast for Paris.\n2. Use a weather app: You can download a weather app on your sm",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Is it going to snow in Chicago?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 10477,
+        "content": "Based on the weather forecast, it does not appear that there is snow in Chicago at this time. The current temperature is -4°C (24°F) and the conditions are sunny with a feels like temperature of -9°C (17°F). It's also worth noting that the UV index is 2, which suggests that the sun is not too strong, but there is no indication of snow in the forecast. However, it's always a good idea to check the forecast again closer to the date you're interested in to get a more accurate prediction.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the UV index in Miami today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1684,
+        "content": "You can check the current UV index for Miami on websites such as weather.com, accuweather.com, or the National Weather Service (nws.noaa.gov). They provide up-to-date information on the UV index, which can help you plan your outdoor activities safely.\n\nAlternatively, you can also check the UV index on a mobile app or a smart speaker.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Current weather conditions in Sydney?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 7320,
+        "content": "Thank you for providing the current weather conditions in Sydney. According to the data, the current temperature in Sydney is 19°C (67°F), with feels-like temperature also at 19°C (67°F). The conditions are partly cloudy, with a humidity of 83% and a wind speed of 9 mph (14 km/h) from the north. The visibility is 10 km, and the UV index is 0. Please note that this data is accurate as of 05:40 PM UTC and may have changed since then.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What should I wear for the weather in Berlin today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 10670,
+        "content": "Based on the current weather in Berlin, it seems like it's quite cold and windy today. I would recommend dressing warmly and layers to stay comfortable.\n\nHere's a suggested outfit:\n\n* A warm and waterproof coat or jacket\n* A thick sweater or fleece layer\n* A pair of insulated, waterproof pants (if you plan on being outside for an extended period)\n* Warm socks and insulated boots with good grip (to handle the wind and potential snow or ice)\n* A hat, scarf, and gloves to protect your head, neck, a",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Is it hot or cold in Dubai right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 11303,
+        "content": "Based on the current weather data, it appears that Dubai is currently warm, with a temperature of 23°C (74°F). It feels like 25°C (77°F) due to the humidity, and the conditions are clear with moderate wind from the northeast.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's happening in the news today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2976,
+        "content": "I apologize for the limited response earlier. I can suggest some ways for you to stay updated on current news:\n\n1. Check online news websites: Websites like BBC News, Al Jazeera, CNN, and The New York Times provide up-to-date coverage of global events.\n2. Use a news aggregator app: Apps like Google News, Apple News, and Microsoft News aggregate news from various sources and provide a curated feed.\n3. Follow news on social media: Many news organizations and journalists share updates on social med",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Latest headlines from Europe",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 7323,
+        "content": "Here are some of the latest headlines from Europe:\n\n1. **Brexit: UK and EU Reach Post-Brexit Trade Deal** - The UK and EU have agreed on a post-Brexit trade deal, which aims to minimize tariffs and other trade barriers between the two parties.\n2. **Climate Change: European Union Announces New Emissions Reduction Targets** - The European Union has announced new emissions reduction targets, aiming to cut greenhouse gas emissions by at least 55% by 2030.\n3. **Covid-19: EU Reports Drop in New Cases ",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's the latest tech news?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 5497,
+        "content": "Here are some of the latest tech news:\n\n1. **Google's Bard AI**: Google has released Bard, its new AI chatbot that can generate human-like responses to user queries.\n2. **Microsoft's Azure Quantum**: Microsoft has announced the release of Azure Quantum, a new cloud-based quantum computing platform.\n3. **Amazon's Echo Frames**: Amazon has released Echo Frames, a new smart glasses device that allows users to control their Alexa-enabled devices with voice commands.\n4. **Tesla's Full Self-Driving Be",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Any breaking news right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3044,
+        "content": "You're looking for the latest breaking news. I'm a large language model, I don't have real-time access to current events. However, I can suggest some ways for you to find the latest breaking news:\n\n1. Check online news websites: Websites like BBC News, Al Jazeera, CNN, and The New York Times provide up-to-date coverage of current events.\n2. Use a search engine: You can use a search engine like Google to search for the latest breaking news.\n3. Follow news on social media: Many news organizations ",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's going on in the world today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3984,
+        "content": "I can try to provide some general information on current events, but please note that my knowledge cutoff is December 2023, and I may not have information on very recent events.\n\nThat being said, here are some general news topics that were prominent in December 2023:\n\n1. COVID-19 pandemic: The pandemic was still ongoing in many parts of the world, with new variants and outbreaks reported regularly.\n2. Climate change: Climate change remained a major topic of discussion, with many countries and or",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Top stories in sports",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 4821,
+        "content": "Here are some of the top sports stories as of my knowledge cutoff in December 2023:\n\n1. NBA: The 2023-24 NBA season is underway, with the Boston Celtics and the Denver Nuggets among the top contenders.\n2. NFL: The 2023-24 NFL season is also underway, with the Kansas City Chiefs and the Philadelphia Eagles among the top teams.\n3. Tennis: The 2023 US Open has come to a close, with Novak Djokovic winning his second consecutive title.\n4. Soccer: The 2022 World Cup has concluded, with Argentina winni",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Latest news about AI",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 8756,
+        "content": "Here are some recent news and developments in the field of AI:\n\n1. **Google's LaMDA AI**: In January 2023, Google announced LaMDA, a conversational AI model that can engage in natural-sounding conversations. LaMDA has been generating news articles, chatbot responses, and other written content.\n2. **Amazon's Sumerian AI**: In February 2023, Amazon announced Sumerian, a cloud-based platform for building and deploying AI and virtual reality experiences. Sumerian allows developers to create immersiv",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What happened in politics today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3761,
+        "content": "You're looking for the latest political news. Unfortunately, I'm a large language model, I don't have have access to real-time information. However, I can suggest some ways for you to stay up-to-date on the latest political news:\n\n1. Check online news websites: Websites like CNN, Fox News, BBC, and NPR provide up-to-date coverage of political news.\n2. Follow political news on social media: Follow political news outlets, journalists, and politicians on social media platforms like Twitter, Faceboo",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Current events summary",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3973,
+        "content": "I apologize for the limitation. Since I'm a large language model, my knowledge is based on my training data, and I don't have real-time access to current events. However, I can suggest some ways for you to get a summary of current events:\n\n1. Check online news websites: Websites like CNN, BBC, Al Jazeera, and The New York Times provide up-to-date news coverage on various topics, including politics, business, sports, and more.\n2. Use a search engine: You can use search engines like Google to sear",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "News from Asia today",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 6359,
+        "content": "Here's an update on some of the latest news from Asia:\n\n1. **South Korea**: The US and South Korea have announced a joint military exercise, which has raised concerns in North Korea. The exercise is scheduled to take place in March and will involve US and South Korean troops.\n2. **India**: The Indian government has launched a new initiative to promote digital payments in the country. The initiative aims to increase the use of digital payment methods, such as mobile wallets and online banking.\n3.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What is the current price of Bitcoin?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1235,
+        "content": "The current price of Bitcoin is $75,191 as of 2026-02-03T17:45:08.187Z.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "How is the stock market doing today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1859,
+        "content": "You can check the current stock market performance on websites like:\n\n* Yahoo Finance (finance.yahoo.com)\n* Google Finance (finance.google.com)\n* Bloomberg (bloomberg.com)\n* CNBC (cnbc.com)\n* Reuters (reuters.com)\n\nThese websites provide up-to-date information on stock market indices, such as the S&P 500, Dow Jones, and NASDAQ, as well as real-time stock prices and news.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's Apple's stock price?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 925,
+        "content": "You can find the current stock price of Apple on financial news websites such as Bloomberg, CNBC, or financial portals like Yahoo Finance, Google Finance, or Apple's own investor relations website.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "Current price of gold?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1034,
+        "content": "I'm sorry, but I cannot provide real-time information. Is there anything else I can help you with?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the EUR/USD exchange rate?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1863,
+        "content": "You can find the current EUR/USD exchange rate on various websites, such as XE.com, Bloomberg, or Reuters. These websites provide real-time and up-to-date exchange rate information.\n\nAs of my knowledge cutoff in 2023, the EUR/USD exchange rate was around 0.98 USD per EUR. However, please note that exchange rates can fluctuate constantly and may have changed since my knowledge cutoff.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "How is Tesla stock performing?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3012,
+        "content": "You can check the current performance of Tesla stock on various financial websites such as Yahoo Finance, Google Finance, or Bloomberg. These websites provide up-to-date information on stock prices, charts, and news.\n\nAs of my knowledge cutoff in 2023, Tesla's stock performance was subject to change. However, I can provide some general information on the company's stock performance in 2023.\n\nIn 2023, Tesla's stock price was affected by various factors, including the company's quarterly earnings ",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the price of Ethereum?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1798,
+        "content": "Thank you for providing the output of the web search. However, please note that the price of Ethereum can fluctuate rapidly and may have changed since the data was last updated.\n\nAs of the current date (February 3rd, 2024), the price of Ethereum was around $2,205.37 USD per coin, according to the data provided.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "S&P 500 current level?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2215,
+        "content": "You can find the current level of the S&P 500 on financial news websites such as CNN Money, Bloomberg, or Yahoo Finance. They provide up-to-date information on stock indices, including the S&P 500.\n\nAs of my knowledge cutoff in 2023, the current level of the S&P 500 was around 4,000. However, please note that the index value may have changed since my knowledge cutoff. For the most recent and accurate information, I recommend checking a reliable financial news source or website.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the oil price today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1450,
+        "content": "I'm a large language model, I don't have real-time access to current data. The prices I can provide are not up-to-date. For the latest oil prices, I recommend checking reputable sources such as Bloomberg, OilPrice.com, or Trading Economics for the most current information.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "Crypto market update",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3664,
+        "content": "I'm not able to provide real-time market updates as my knowledge cutoff is December 2023. However, I can provide some general information about the crypto market as of my knowledge cutoff.\n\nAs of December 2023, the crypto market was experiencing a significant decline in prices. The overall sentiment was bearish, with many cryptocurrencies losing value due to various factors such as regulatory uncertainty, security concerns, and market volatility.\n\nSome of the top cryptocurrencies by market capit",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Hello, how are you?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 7605,
+        "content": "Hello! I'm just a computer program, so I don't have feelings, but I'm here and ready to help you. How can I assist you today?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What is 2 + 2?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 6185,
+        "content": "The result of 2 + 2 is 4.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Tell me a joke",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 6418,
+        "content": "Sure, here's a light joke for you: Why don't scientists trust atoms?\n\nBecause they make up everything!",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What is the capital of France?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 4600,
+        "content": "The capital of France is Paris.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Explain what recursion is",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 10389,
+        "content": "Recursion is a fundamental concept in programming that involves a function calling itself repeatedly until it reaches a base case that stops the recursion.\n\nHere's a step-by-step explanation:\n\n1. **Base Case**: A recursive function starts by checking if a certain condition is met. If it is, the function stops calling itself and returns a value. This is the base case.\n2. **Recursive Call**: If the base case is not met, the function calls itself with a smaller input or a modified version of the or",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Write a haiku about coding",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 6265,
+        "content": "HeaderCode runs deep,  \nSyntax dances on the screen,  \nBug hunts in the night.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What does HTTP stand for?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 7388,
+        "content": "HTTP stands for HyperText Transfer Protocol. It is the foundation of data communication for the World Wide Web, specifying how messages are formatted and transmitted, and how web servers and browsers should respond to various commands.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "How do I make coffee?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 18015,
+        "content": "Making coffee can vary depending on the method you choose. Here are instructions for a simple method using a drip coffee maker:\n\n1. **Gather Your Supplies**: You will need coffee beans or grounds, a coffee filter, water, and a coffee maker.\n2. **Grind Your Coffee Beans**: If you're using whole beans, grind them to a medium-coarse consistency.\n3. **Prepare the Filter**: Place a coffee filter into the filter basket of your coffee maker.\n4. **Add Coffee Grounds**: Add the appropriate amount of coff",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    }
+  ]
+}
