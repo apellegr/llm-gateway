@@ -1,0 +1,12 @@
+model,local_score,anthropic_score,local_wins,total_tests,win_rate,avg_latency_ms,tool_leaks,recommendation
+anthropic,8.3,--,ref,ref,100%,2000,0,Production standard
+deepseek-r1-32b,7.0,8.5,0,15,0%,59100,0,Best quality but very slow
+mistral-small-24b,6.1,8.1,3,15,20%,24700,1,Best quality/speed balance
+hermes-4-14b,6.0,8.3,1,15,7%,17700,2,Good alternative
+qwen2.5-14b,5.9,8.7,1,15,7%,23200,0,
+qwen2.5-32b,5.9,8.3,2,15,13%,20800,2,
+gemma-2-27b,5.8,8.7,0,15,0%,30500,1,
+phi-4,5.7,8.5,0,15,0%,15700,3,
+gemma-2-9b,5.6,8.3,1,15,7%,14100,1,Fastest acceptable
+qwen2.5-7b,4.8,7.5,2,15,13%,11800,1,Fast but lower quality
+deepseek-r1-llama-70b,2.5,8.5,0,15,0%,53000,0,Too slow - impractical
