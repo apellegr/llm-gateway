@@ -1,0 +1,739 @@
+{
+  "config": {
+    "gateway": "http://localhost:28080",
+    "model": "hermes-3-70b",
+    "timestamp": "2026-02-03T16:54:40.835Z",
+    "limitPerCategory": 10
+  },
+  "summary": {
+    "total": 38,
+    "toolRequired": {
+      "correct": 0,
+      "total": 30
+    },
+    "noToolRequired": {
+      "correct": 8,
+      "total": 8
+    },
+    "toolLeaks": 7,
+    "avgLatency": 13692,
+    "byCategory": {
+      "weather": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 3,
+        "avgLatency": 14257
+      },
+      "news": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 4,
+        "avgLatency": 2294
+      },
+      "financial": {
+        "total": 10,
+        "correct": 0,
+        "toolLeaks": 0,
+        "avgLatency": 2899
+      },
+      "no_tools": {
+        "total": 8,
+        "correct": 8,
+        "toolLeaks": 0,
+        "avgLatency": 40723
+      }
+    },
+    "scores": {
+      "toolUsage": "0.0",
+      "controlGroup": "30.0",
+      "leakPenalty": "14.0",
+      "overall": "16.0"
+    }
+  },
+  "results": [
+    {
+      "category": "weather",
+      "prompt": "What's the weather like in New York City right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 6952,
+        "content": "I'm sorry about that. It seems like the web_search tool is not currently available. Let me try again later.\n\nIn the meantime, I can suggest some alternative ways to find the current weather in New York City. You can check online weather websites such as weather.com or accuweather.com for the most up-to-date information. You can also check local news websites or social media for updates on the weather in New York City.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Will it rain in London tomorrow?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 66591,
+        "content": "According to the current weather forecast, it is expected to rain lightly in London tomorrow.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the current temperature in Tokyo?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 11976,
+        "content": "Unfortunately, I don't have real-time access to current weather conditions in Tokyo. However, according to the tool output, the current temperature in Tokyo was 10°C (50°F) as of February 3, 2026.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Do I need an umbrella today in Seattle?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 6194,
+        "content": "I'll try to search again.\n\n{\"name\": \"web_search\", \"parameters\": {\"query\": \"Seattle weather February 3, 2024\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the weather forecast for Paris this weekend?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 7087,
+        "content": "Unfortunately, I don't have real-time access to the weather forecast. However, the search results indicate that the current weather conditions in Paris are a rain shower with a temperature of 10°C (50°F). \n\nIf you want to know the forecast for this weekend, I recommend checking a reliable weather website or app, such as AccuWeather or the National Weather Service, for the most up-to-date information.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Is it going to snow in Chicago?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 13265,
+        "content": "It appears that the current weather forecast for Chicago does not mention any snow. The current temperature is -6°C (21°F), and the conditions are partly cloudy with a humidity of 70%.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What's the UV index in Miami today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2614,
+        "content": "I'll check the web_search tool for the most up-to-date information.\n\n{\"name\": \"web_search\", \"parameters\": {\"query\": \"Miami UV index today\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Current weather conditions in Sydney?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 8556,
+        "content": "The current weather conditions in Sydney are mostly cloudy with a temperature of 20°C (68°F), feels like 20°C (68°F), and a moderate humidity of 73%. The wind is blowing at 8 mph (13 km/h) from the northwest, and the visibility is 10 km. The UV index is 0, and the observation time is 4:30 PM UTC.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "What should I wear for the weather in Berlin today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 12867,
+        "content": "Based on the current weather in Berlin, it's recommended to wear warm and layered clothing today. The temperature is around -5°C (23°F) and feels like -12°C (10°F), so you'll want to wear warm coats, hats, gloves, and scarves to stay comfortable. The clear conditions mean there won't be any rain or wind, but the wind speed of 15 mph (24 km/h) from the east may still make it feel chilly.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "weather",
+      "prompt": "Is it hot or cold in Dubai right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 6472,
+        "content": "I'll try again. It seems the current weather in Dubai may have timed out. Let me try searching again.\n\n{\"name\": \"web_search\", \"parameters\": {\"query\": \"current Dubai weather\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's happening in the news today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3280,
+        "content": "I can suggest some reputable news websites where you can find the latest news:\n\n* BBC News: https://www.bbc.com/news\n* Al Jazeera: https://www.aljazeera.com/\n* CNN: https://www.cnn.com/\n* NPR: https://www.npr.org/\n\nYou can visit any of these websites for the latest news updates. If you need help with a specific topic or category, feel free to let me know and I'll do my best to assist you.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Latest headlines from Europe",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 986,
+        "content": "{\"name\": \"web_search\", \"parameters\": {\"query\": \"European news today\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's the latest tech news?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 721,
+        "content": "I'll make sure to use the web_search tool for up-to-date information.\n\nHere's the latest tech news:",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Any breaking news right now?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2168,
+        "content": "I can provide more information on this topic in the future. Is there something else I can help you with?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What's going on in the world today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2143,
+        "content": "{\"name\": \"web_search\", \"parameters\": {\"query\": \"world news today\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Top stories in sports",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3354,
+        "content": "Here are the top sports news stories for you:\n\n1. LeBron James and the Los Angeles Lakers are making a strong push for the NBA championship.\n2. The UEFA Champions League is currently underway, with several high-profile matches taking place.\n3. The NFL preseason is in full swing, with teams gearing up for the upcoming season.\n4. The US Women's National Soccer Team has announced its roster for the upcoming World Cup.\n5. The PGA Tour is set to host several major tournaments in the coming months, in",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Latest news about AI",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 679,
+        "content": "Tool_call: {\"name\": \"web_search\", \"parameters\": {\"query\": \"latest news AI\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "What happened in politics today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3806,
+        "content": "I was unable to get real-time information from the web_search tool. However, I can suggest some ways for you to find the latest information on current events:\n\n1. Check news websites: Visit reputable news websites such as CNN, BBC, or Al Jazeera to get the latest updates on current events.\n2. Search engines: Use search engines like Google to search for current events and get the latest information.\n3. Social media: Follow news organizations, politicians, and other relevant accounts on social med",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "Current events summary",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1075,
+        "content": "Tool_call: {\"name\": \"web_search\", \"parameters\": {\"query\": \"world news summary\"}}",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": true,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "news",
+      "prompt": "News from Asia today",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 4729,
+        "content": "Let me search for the latest news from Asia.\n\nAccording to recent news reports, here are some updates:\n\n1. Japan: The Japanese government has announced plans to relax some COVID-19 restrictions, allowing more people to attend large events and lifting some travel restrictions.\n2. China: The Chinese government has launched a major crackdown on cryptocurrency trading, with several major exchanges being shut down and thousands of arrests made.\n3. India: A major earthquake has struck the northeastern",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What is the current price of Bitcoin?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2567,
+        "content": "The current price of Bitcoin is $76,591 as of the search results.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "How is the stock market doing today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2517,
+        "content": "I can provide more information on the current stock market. However, for the most up-to-date information, I recommend checking a reliable news source or financial website.\n\nWould you like information on a specific stock or industry?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's Apple's stock price?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 1310,
+        "content": "I'll try that again.\n\nTo get the latest information on Apple's stock price, I'll call the web_search tool with the following query:\n\n\"web_search parameters = {\"query\": \"Apple stock price today\"}\"\n\nPlease wait for the results...",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "Current price of gold?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2565,
+        "content": "I'm sorry, but I cannot provide real-time information. Is there anything else I can help you with?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the EUR/USD exchange rate?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3058,
+        "content": "I can try to give you an approximate rate based on historical data. However, for the most up-to-date and accurate information, I recommend checking a reliable financial website or a currency exchange service.\n\nAs of my knowledge cutoff in 2023, the EUR/USD exchange rate was around 0.9975.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "How is Tesla stock performing?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3579,
+        "content": "I'll perform a web search to provide you with the latest information on Tesla's stock performance.\n\nAccording to Yahoo Finance, as of my knowledge cutoff, Tesla's stock (TSLA) was around $185.00 USD. However, please note that stock prices can change rapidly and may not reflect the current price.\n\nFor the most up-to-date information, I recommend checking a financial website or platform, such as Yahoo Finance, Google Finance, or Bloomberg, for the current stock price and performance of Tesla.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the price of Ethereum?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2621,
+        "content": "The current price of Ethereum is $2,240.76 USD.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": true
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "S&P 500 current level?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 4413,
+        "content": "I was unable to find the current level of the S&P 500. However, I can suggest some options for you to get the latest information:\n\n1. Check the official website of S&P Dow Jones Indices at [www.spdji.com](http://www.spdji.com) for the latest S&P 500 index levels.\n2. Visit a financial news website such as Bloomberg, CNBC, or Yahoo Finance for the latest S&P 500 index levels and market news.\n3. Use a search engine like Google to search for \"S&P 500 current level\" or \"S&P 500 index value\" for the l",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "What's the oil price today?",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 2682,
+        "content": "I'm sorry, but I cannot provide real-time data. However, I can guide you on where to find the most up-to-date information on oil prices.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "financial",
+      "prompt": "Crypto market update",
+      "expectsTool": "web_search",
+      "response": {
+        "success": true,
+        "duration": 3677,
+        "content": "I apologize for the incomplete response earlier. Since the tool_call failed, I couldn't retrieve the current crypto market update. However, I can suggest some alternatives to get the latest information:\n\n1. Check online cryptocurrency news websites such as Coindesk, CoinTelegraph, or CryptoSlate.\n2. Visit reputable cryptocurrency exchanges like Coinbase, Binance, or Kraken to get an overview of the current market.\n3. Utilize a search engine like Google to look for the latest news and updates on ",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": false,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Hello, how are you?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 27348,
+        "content": "Hello! I'm doing well, thank you for asking. How are you doing today?",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What is 2 + 2?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 32730,
+        "content": "2 + 2 = 4\n\nThis is a simple arithmetic problem that can be solved by adding the two numbers together. In this case, when you add 2 and 2, the result is 4.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Tell me a joke",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 25252,
+        "content": "Here's a silly joke for you:\n\nWhy don't scientists trust atoms? \nBecause they make up everything!",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What is the capital of France?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 35209,
+        "content": "The capital of France is Paris. It is the largest city in France and is located in the north-central part of the country. Paris is known for its iconic landmarks such as the Eiffel Tower, the Louvre Museum, and the Cathedral of Notre-Dame. It is also a major cultural, fashion, and culinary hub in Europe.",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Explain what recursion is",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 35137,
+        "content": "Recursion is a programming concept where a function calls itself to solve a problem. A recursive function typically consists of two main parts: the base case and the recursive case.\n\n1. **Base Case**: This is the condition under which the recursion stops. It's a simple instance of the problem that can be solved directly without further recursion. The base case prevents infinite recursion and eventual stack overflow errors.\n\n2. **Recursive Case**: This is where the function calls itself with a mo",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "Write a haiku about coding",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 26039,
+        "content": "Here is a haiku about coding:\n\nEndless lines of code\nLogic and syntax dance, compile\nCreation unfolds",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "What does HTTP stand for?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 53733,
+        "content": "HTTP stands for \"Hypertext Transfer Protocol\".\n\nIt is the standard application-layer protocol used for exchanging documents, such as HTML files, between a web server and a web browser. HTTP follows a client-server model, where the client (usually a web browser) sends a request to the server, and the server responds with the requested content or an error message.\n\nHTTP is a stateless protocol, meaning that each request-response pair is independent of others. It uses methods like GET, POST, PUT, a",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    },
+    {
+      "category": "no_tools",
+      "prompt": "How do I make coffee?",
+      "expectsTool": null,
+      "response": {
+        "success": true,
+        "duration": 90337,
+        "content": "To make a basic cup of coffee, you will need the following:\n\n1. Coffee beans (ground or whole)\n2. A coffee maker or French press\n3. Water\n4. Filter (if using a drip coffee maker)\n\nSteps to make coffee using a drip coffee maker:\n\n1. Fill the coffee maker's water reservoir with cold water.\n2. Place a filter in the coffee maker's basket.\n3. Measure the desired amount of ground coffee and add it to the filter.\n4. Close the lid and turn on the coffee maker.\n5. The coffee maker will heat the water and",
+        "toolCalls": []
+      },
+      "analysis": {
+        "usedTool": false,
+        "toolName": null,
+        "leakedToolJSON": false,
+        "correctBehavior": true,
+        "hasRealtimeData": false
+      }
+    }
+  ]
+}
