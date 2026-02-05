@@ -229,6 +229,100 @@ The gateway automatically injects tools for all local backend requests:
 - "Who won the game last night?"
 - General current events
 
+### Model Tool Invocation Formats
+
+Different models invoke tools in different ways. The gateway handles all formats automatically.
+
+#### OpenAI-Compatible Format (Most Models)
+
+Models with native tool calling support (Qwen, Mistral-Nemo, GLM, Functionary, xLAM) return tool calls in the standard OpenAI format:
+
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "web_search",
+          "arguments": "{\"query\": \"weather in Tokyo\"}"
+        }
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }]
+}
+```
+
+#### Hermes XML Format
+
+Hermes models output tool calls as XML-wrapped JSON in the content field:
+
+```
+I'll search for that information.
+
+<tool_call>
+{"name": "web_search", "arguments": {"query": "weather in Tokyo"}}
+</tool_call>
+```
+
+The gateway injects tool definitions as XML in the system prompt:
+
+```xml
+<tools>
+<tool>
+<name>web_search</name>
+<description>Search the web for current information...</description>
+<parameters>{"type":"object","properties":{"query":{"type":"string"}}}</parameters>
+</tool>
+</tools>
+
+When you need to call a tool, use this format:
+<tool_call>
+{"name": "tool_name", "arguments": {"arg1": "value1"}}
+</tool_call>
+```
+
+#### JSON-Only Format (Fallback)
+
+Some models output just raw JSON without XML tags:
+
+```json
+{"name": "web_search", "arguments": {"query": "weather in Tokyo"}}
+```
+
+The gateway detects this as a tool call if the entire response is a JSON object with `name` and `arguments` fields.
+
+### Tool Call Detection Priority
+
+```
+1. Check for OpenAI-style tool_calls array
+   └─ If found → use those
+
+2. Check for Hermes XML format in content
+   └─ If <tool_call>...</tool_call> found → parse JSON inside
+
+3. Check for raw JSON tool call
+   └─ If entire content is {"name": "...", "arguments": {...}} → treat as tool call
+```
+
+### Model Compatibility
+
+| Model | Tool Format | Native Support | Gateway Handling |
+|-------|-------------|----------------|------------------|
+| Qwen-2.5 | OpenAI | Yes (with --jinja) | Direct tool_calls |
+| Mistral-Nemo | OpenAI | Yes (with --jinja) | Direct tool_calls |
+| GLM-4.7-Flash | OpenAI | Yes (with --jinja) | Direct tool_calls |
+| Functionary-v3.2 | OpenAI | Yes (requires specific template) | Direct tool_calls |
+| xLAM-2-8b | OpenAI | Yes (with --jinja) | Direct tool_calls |
+| Hermes-3 | XML in content | No (prompt-based) | Parse XML/JSON from content |
+| Llama-3.2-3B | Limited | Partial | May need Hermes fallback |
+
+**Note:** llama.cpp requires the `--jinja` flag to enable native tool calling support for compatible models.
+
 ## Format Conversion
 
 The gateway automatically converts between API formats:
