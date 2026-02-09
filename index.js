@@ -93,6 +93,27 @@ let config = {
       days: 30,            // Auto-delete after N days (0 = forever)
       maxDocuments: 10000  // Max documents to keep
     }
+  },
+  tools: {
+    notifications: {
+      enabled: true,
+      provider: 'ntfy',  // 'ntfy' | 'telegram' | 'pushover'
+      ntfy: {
+        server: 'https://ntfy.sh',
+        topic: 'llm-gateway-notifications'  // Change this to your topic
+      },
+      telegram: {
+        botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+        chatId: process.env.TELEGRAM_CHAT_ID || ''
+      }
+    },
+    reminders: {
+      enabled: true,
+      checkIntervalMs: 60000  // Check for due reminders every minute
+    },
+    todos: {
+      enabled: true
+    }
   }
 };
 
@@ -1256,8 +1277,545 @@ const CALCULATOR_TOOL = {
   }
 };
 
+// Send notification tool definition
+const SEND_NOTIFICATION_TOOL = {
+  type: 'function',
+  function: {
+    name: 'send_notification',
+    description: 'Send a push notification to the user. Use this when the user asks you to notify them, alert them, or send them a message.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: {
+          type: 'string',
+          description: 'The notification title (optional, defaults to "LLM Gateway")'
+        },
+        message: {
+          type: 'string',
+          description: 'The notification message content'
+        },
+        priority: {
+          type: 'string',
+          enum: ['low', 'default', 'high', 'urgent'],
+          description: 'Priority level (optional, defaults to "default")'
+        }
+      },
+      required: ['message']
+    }
+  }
+};
+
+// Set reminder tool definition
+const SET_REMINDER_TOOL = {
+  type: 'function',
+  function: {
+    name: 'set_reminder',
+    description: 'Set a reminder for a specific time. Use this when the user wants to be reminded about something later. Supports relative times like "in 30 minutes" or absolute times like "at 3pm" or "tomorrow at 9am".',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: 'What to remind the user about'
+        },
+        time: {
+          type: 'string',
+          description: 'When to send the reminder. Can be relative ("in 30 minutes", "in 2 hours") or absolute ("at 3pm", "tomorrow at 9am", "2024-02-15 14:00")'
+        }
+      },
+      required: ['message', 'time']
+    }
+  }
+};
+
+// Set timer tool definition
+const SET_TIMER_TOOL = {
+  type: 'function',
+  function: {
+    name: 'set_timer',
+    description: 'Set a countdown timer. Use this when the user wants a timer for a specific duration (e.g., "set a timer for 5 minutes", "timer for 1 hour").',
+    parameters: {
+      type: 'object',
+      properties: {
+        duration: {
+          type: 'string',
+          description: 'Timer duration (e.g., "5 minutes", "1 hour", "90 seconds", "1h30m")'
+        },
+        label: {
+          type: 'string',
+          description: 'Optional label for the timer (e.g., "pasta", "laundry")'
+        }
+      },
+      required: ['duration']
+    }
+  }
+};
+
+// Todo list tool definition
+const TODO_TOOL = {
+  type: 'function',
+  function: {
+    name: 'manage_todos',
+    description: 'Manage a todo list. Use this to add, list, complete, or delete tasks. When the user says "add to my list", "remind me to buy", "I need to", or asks about their tasks.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['add', 'list', 'complete', 'delete', 'clear_completed'],
+          description: 'The action to perform'
+        },
+        task: {
+          type: 'string',
+          description: 'The task description (required for add action)'
+        },
+        task_id: {
+          type: 'string',
+          description: 'The task ID (required for complete/delete actions)'
+        },
+        priority: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+          description: 'Task priority (optional, for add action)'
+        }
+      },
+      required: ['action']
+    }
+  }
+};
+
+// Weather forecast tool definition
+const WEATHER_FORECAST_TOOL = {
+  type: 'function',
+  function: {
+    name: 'weather_forecast',
+    description: 'Get a multi-day weather forecast for a location. Use this when the user asks about weather for the next few days, weekly forecast, or planning for future weather.',
+    parameters: {
+      type: 'object',
+      properties: {
+        location: {
+          type: 'string',
+          description: 'The city or location to get forecast for'
+        },
+        days: {
+          type: 'number',
+          description: 'Number of days to forecast (1-3, defaults to 3)'
+        }
+      },
+      required: ['location']
+    }
+  }
+};
+
+// Unit converter tool definition
+const UNIT_CONVERTER_TOOL = {
+  type: 'function',
+  function: {
+    name: 'convert_units',
+    description: 'Convert between different units of measurement. Supports length, weight, volume, temperature, speed, and data sizes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        value: {
+          type: 'number',
+          description: 'The numeric value to convert'
+        },
+        from_unit: {
+          type: 'string',
+          description: 'The source unit (e.g., "km", "miles", "kg", "lbs", "celsius", "fahrenheit", "liters", "gallons", "mb", "gb")'
+        },
+        to_unit: {
+          type: 'string',
+          description: 'The target unit to convert to'
+        }
+      },
+      required: ['value', 'from_unit', 'to_unit']
+    }
+  }
+};
+
+// Dictionary tool definition
+const DICTIONARY_TOOL = {
+  type: 'function',
+  function: {
+    name: 'dictionary',
+    description: 'Look up word definitions, pronunciations, and examples. Use this when the user asks "what does X mean", "define X", or wants to know about a word.',
+    parameters: {
+      type: 'object',
+      properties: {
+        word: {
+          type: 'string',
+          description: 'The word to look up'
+        }
+      },
+      required: ['word']
+    }
+  }
+};
+
 // All tools available for local models
-const LOCAL_MODEL_TOOLS = [WEB_SEARCH_TOOL, GET_CURRENT_TIME_TOOL, CALCULATOR_TOOL];
+const LOCAL_MODEL_TOOLS = [
+  WEB_SEARCH_TOOL,
+  GET_CURRENT_TIME_TOOL,
+  CALCULATOR_TOOL,
+  SEND_NOTIFICATION_TOOL,
+  SET_REMINDER_TOOL,
+  SET_TIMER_TOOL,
+  TODO_TOOL,
+  WEATHER_FORECAST_TOOL,
+  UNIT_CONVERTER_TOOL,
+  DICTIONARY_TOOL
+];
+
+// ============================================================================
+// Tier 1 Tools - Infrastructure
+// ============================================================================
+
+// In-memory storage for timers and reminders (reminders also persisted to MongoDB)
+const activeTimers = new Map();
+const activeReminders = new Map();
+let reminderCheckInterval = null;
+
+// Parse relative time strings like "in 30 minutes", "in 2 hours"
+function parseRelativeTime(timeStr) {
+  const now = new Date();
+  const lower = timeStr.toLowerCase().trim();
+
+  // Handle "in X minutes/hours/seconds/days"
+  const inMatch = lower.match(/^in\s+(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)$/i);
+  if (inMatch) {
+    const value = parseFloat(inMatch[1]);
+    const unit = inMatch[2].toLowerCase();
+    let ms = 0;
+    if (unit.startsWith('s')) ms = value * 1000;
+    else if (unit.startsWith('m') && !unit.startsWith('mi')) ms = value * 60 * 1000;
+    else if (unit.startsWith('h')) ms = value * 60 * 60 * 1000;
+    else if (unit.startsWith('d')) ms = value * 24 * 60 * 60 * 1000;
+    return new Date(now.getTime() + ms);
+  }
+
+  // Handle "at 3pm", "at 15:00"
+  const atMatch = lower.match(/^at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (atMatch) {
+    let hours = parseInt(atMatch[1]);
+    const minutes = parseInt(atMatch[2] || '0');
+    const ampm = atMatch[3]?.toLowerCase();
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    if (ampm === 'am' && hours === 12) hours = 0;
+    const target = new Date(now);
+    target.setHours(hours, minutes, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);  // Tomorrow if time passed
+    return target;
+  }
+
+  // Handle "tomorrow at X"
+  const tomorrowMatch = lower.match(/^tomorrow(?:\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?$/i);
+  if (tomorrowMatch) {
+    const target = new Date(now);
+    target.setDate(target.getDate() + 1);
+    if (tomorrowMatch[1]) {
+      let hours = parseInt(tomorrowMatch[1]);
+      const minutes = parseInt(tomorrowMatch[2] || '0');
+      const ampm = tomorrowMatch[3]?.toLowerCase();
+      if (ampm === 'pm' && hours < 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+      target.setHours(hours, minutes, 0, 0);
+    } else {
+      target.setHours(9, 0, 0, 0);  // Default to 9am
+    }
+    return target;
+  }
+
+  // Try parsing as ISO date or natural date
+  const parsed = new Date(timeStr);
+  if (!isNaN(parsed.getTime())) return parsed;
+
+  return null;
+}
+
+// Parse duration strings like "5 minutes", "1h30m", "90 seconds"
+function parseDuration(durationStr) {
+  const lower = durationStr.toLowerCase().trim();
+  let totalMs = 0;
+
+  // Handle compound format like "1h30m" or "1h 30m"
+  const compoundMatch = lower.match(/(?:(\d+)\s*h(?:ours?)?)?[\s]*(?:(\d+)\s*m(?:in(?:ute)?s?)?)?[\s]*(?:(\d+)\s*s(?:ec(?:ond)?s?)?)?/);
+  if (compoundMatch && (compoundMatch[1] || compoundMatch[2] || compoundMatch[3])) {
+    if (compoundMatch[1]) totalMs += parseInt(compoundMatch[1]) * 60 * 60 * 1000;
+    if (compoundMatch[2]) totalMs += parseInt(compoundMatch[2]) * 60 * 1000;
+    if (compoundMatch[3]) totalMs += parseInt(compoundMatch[3]) * 1000;
+    if (totalMs > 0) return totalMs;
+  }
+
+  // Handle simple format like "5 minutes"
+  const simpleMatch = lower.match(/^(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)$/);
+  if (simpleMatch) {
+    const value = parseFloat(simpleMatch[1]);
+    const unit = simpleMatch[2];
+    if (unit.startsWith('s')) return value * 1000;
+    if (unit.startsWith('m')) return value * 60 * 1000;
+    if (unit.startsWith('h')) return value * 60 * 60 * 1000;
+  }
+
+  // Handle plain number (assume minutes)
+  const numMatch = lower.match(/^(\d+)$/);
+  if (numMatch) {
+    return parseInt(numMatch[1]) * 60 * 1000;
+  }
+
+  return null;
+}
+
+// Send notification via configured provider
+async function sendNotification(title, message, priority = 'default') {
+  const notifConfig = config.tools?.notifications;
+  if (!notifConfig?.enabled) {
+    log('warn', 'Notifications not enabled in config');
+    return { success: false, error: 'Notifications not enabled' };
+  }
+
+  const provider = notifConfig.provider || 'ntfy';
+  log('info', `Sending notification via ${provider}`, { title, message: message.substring(0, 50) });
+
+  try {
+    if (provider === 'ntfy') {
+      const ntfyConfig = notifConfig.ntfy || {};
+      const server = ntfyConfig.server || 'https://ntfy.sh';
+      const topic = ntfyConfig.topic || 'llm-gateway';
+
+      const priorityMap = { low: '2', default: '3', high: '4', urgent: '5' };
+      const response = await makeRequest(`${server}/${topic}`, {
+        method: 'POST',
+        headers: {
+          'Title': title || 'LLM Gateway',
+          'Priority': priorityMap[priority] || '3',
+          'Content-Type': 'text/plain'
+        }
+      }, message);
+
+      if (response.status === 200) {
+        return { success: true, provider: 'ntfy' };
+      } else {
+        return { success: false, error: `ntfy returned ${response.status}` };
+      }
+    } else if (provider === 'telegram') {
+      const tgConfig = notifConfig.telegram || {};
+      if (!tgConfig.botToken || !tgConfig.chatId) {
+        return { success: false, error: 'Telegram bot token or chat ID not configured' };
+      }
+
+      const text = title ? `*${title}*\n\n${message}` : message;
+      const url = `https://api.telegram.org/bot${tgConfig.botToken}/sendMessage`;
+      const response = await makeRequest(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, JSON.stringify({
+        chat_id: tgConfig.chatId,
+        text: text,
+        parse_mode: 'Markdown'
+      }));
+
+      const result = JSON.parse(response.body);
+      if (result.ok) {
+        return { success: true, provider: 'telegram' };
+      } else {
+        return { success: false, error: result.description };
+      }
+    }
+
+    return { success: false, error: `Unknown notification provider: ${provider}` };
+  } catch (e) {
+    log('error', 'Failed to send notification', { error: e.message });
+    return { success: false, error: e.message };
+  }
+}
+
+// Start reminder check interval
+function startReminderChecker() {
+  if (reminderCheckInterval) return;
+
+  const checkInterval = config.tools?.reminders?.checkIntervalMs || 60000;
+  log('info', `Starting reminder checker (interval: ${checkInterval}ms)`);
+
+  reminderCheckInterval = setInterval(async () => {
+    await checkDueReminders();
+  }, checkInterval);
+}
+
+// Check for due reminders
+async function checkDueReminders() {
+  const now = new Date();
+
+  // Check in-memory reminders
+  for (const [id, reminder] of activeReminders) {
+    if (reminder.dueAt <= now) {
+      log('info', `Reminder due: ${reminder.message}`);
+      await sendNotification('Reminder', reminder.message, 'high');
+      activeReminders.delete(id);
+
+      // Update in MongoDB if storage enabled
+      if (db) {
+        try {
+          await db.collection('reminders').updateOne(
+            { _id: id },
+            { $set: { status: 'delivered', deliveredAt: now } }
+          );
+        } catch (e) {
+          log('warn', `Failed to update reminder in DB: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  // Also check MongoDB for reminders (in case of restart)
+  if (db) {
+    try {
+      const dueReminders = await db.collection('reminders').find({
+        status: 'pending',
+        dueAt: { $lte: now }
+      }).toArray();
+
+      for (const reminder of dueReminders) {
+        if (!activeReminders.has(reminder._id.toString())) {
+          log('info', `Reminder from DB due: ${reminder.message}`);
+          await sendNotification('Reminder', reminder.message, 'high');
+          await db.collection('reminders').updateOne(
+            { _id: reminder._id },
+            { $set: { status: 'delivered', deliveredAt: now } }
+          );
+        }
+      }
+    } catch (e) {
+      log('warn', `Failed to check DB reminders: ${e.message}`);
+    }
+  }
+}
+
+// Load pending reminders from MongoDB on startup
+async function loadRemindersFromDB() {
+  if (!db) return;
+
+  try {
+    const pendingReminders = await db.collection('reminders').find({
+      status: 'pending'
+    }).toArray();
+
+    for (const reminder of pendingReminders) {
+      activeReminders.set(reminder._id.toString(), {
+        message: reminder.message,
+        dueAt: new Date(reminder.dueAt),
+        createdAt: reminder.createdAt
+      });
+    }
+
+    log('info', `Loaded ${pendingReminders.length} pending reminders from DB`);
+  } catch (e) {
+    log('warn', `Failed to load reminders from DB: ${e.message}`);
+  }
+}
+
+// Unit conversion data
+const UNIT_CONVERSIONS = {
+  // Length
+  length: {
+    m: 1, meter: 1, meters: 1,
+    km: 1000, kilometer: 1000, kilometers: 1000,
+    cm: 0.01, centimeter: 0.01, centimeters: 0.01,
+    mm: 0.001, millimeter: 0.001, millimeters: 0.001,
+    mi: 1609.344, mile: 1609.344, miles: 1609.344,
+    yd: 0.9144, yard: 0.9144, yards: 0.9144,
+    ft: 0.3048, foot: 0.3048, feet: 0.3048,
+    in: 0.0254, inch: 0.0254, inches: 0.0254,
+    nm: 1852, 'nautical mile': 1852, 'nautical miles': 1852
+  },
+  // Weight
+  weight: {
+    kg: 1, kilogram: 1, kilograms: 1,
+    g: 0.001, gram: 0.001, grams: 0.001,
+    mg: 0.000001, milligram: 0.000001, milligrams: 0.000001,
+    lb: 0.453592, lbs: 0.453592, pound: 0.453592, pounds: 0.453592,
+    oz: 0.0283495, ounce: 0.0283495, ounces: 0.0283495,
+    st: 6.35029, stone: 6.35029, stones: 6.35029,
+    t: 1000, ton: 1000, tons: 1000, tonne: 1000, tonnes: 1000
+  },
+  // Volume
+  volume: {
+    l: 1, liter: 1, liters: 1, litre: 1, litres: 1,
+    ml: 0.001, milliliter: 0.001, milliliters: 0.001,
+    gal: 3.78541, gallon: 3.78541, gallons: 3.78541,
+    qt: 0.946353, quart: 0.946353, quarts: 0.946353,
+    pt: 0.473176, pint: 0.473176, pints: 0.473176,
+    cup: 0.236588, cups: 0.236588,
+    floz: 0.0295735, 'fl oz': 0.0295735, 'fluid ounce': 0.0295735,
+    tbsp: 0.0147868, tablespoon: 0.0147868, tablespoons: 0.0147868,
+    tsp: 0.00492892, teaspoon: 0.00492892, teaspoons: 0.00492892
+  },
+  // Speed
+  speed: {
+    'km/h': 1, kmh: 1, kph: 1,
+    'mph': 1.60934, 'mi/h': 1.60934,
+    'm/s': 3.6, 'meters per second': 3.6,
+    knot: 1.852, knots: 1.852, kn: 1.852
+  },
+  // Data
+  data: {
+    b: 1, byte: 1, bytes: 1,
+    kb: 1024, kilobyte: 1024, kilobytes: 1024,
+    mb: 1048576, megabyte: 1048576, megabytes: 1048576,
+    gb: 1073741824, gigabyte: 1073741824, gigabytes: 1073741824,
+    tb: 1099511627776, terabyte: 1099511627776, terabytes: 1099511627776
+  }
+};
+
+// Convert temperature (special case)
+function convertTemperature(value, fromUnit, toUnit) {
+  const from = fromUnit.toLowerCase();
+  const to = toUnit.toLowerCase();
+
+  // Normalize unit names
+  const celsiusNames = ['c', 'celsius', '°c'];
+  const fahrenheitNames = ['f', 'fahrenheit', '°f'];
+  const kelvinNames = ['k', 'kelvin'];
+
+  let celsius;
+  if (celsiusNames.includes(from)) celsius = value;
+  else if (fahrenheitNames.includes(from)) celsius = (value - 32) * 5 / 9;
+  else if (kelvinNames.includes(from)) celsius = value - 273.15;
+  else return null;
+
+  if (celsiusNames.includes(to)) return celsius;
+  if (fahrenheitNames.includes(to)) return celsius * 9 / 5 + 32;
+  if (kelvinNames.includes(to)) return celsius + 273.15;
+
+  return null;
+}
+
+// Convert units
+function convertUnits(value, fromUnit, toUnit) {
+  const from = fromUnit.toLowerCase().trim();
+  const to = toUnit.toLowerCase().trim();
+
+  // Check temperature first (special handling)
+  const tempUnits = ['c', 'celsius', '°c', 'f', 'fahrenheit', '°f', 'k', 'kelvin'];
+  if (tempUnits.includes(from) && tempUnits.includes(to)) {
+    const result = convertTemperature(value, from, to);
+    if (result !== null) return { value: result, category: 'temperature' };
+  }
+
+  // Find the category for the units
+  for (const [category, units] of Object.entries(UNIT_CONVERSIONS)) {
+    const fromFactor = units[from];
+    const toFactor = units[to];
+
+    if (fromFactor !== undefined && toFactor !== undefined) {
+      const baseValue = value * fromFactor;
+      const result = baseValue / toFactor;
+      return { value: result, category };
+    }
+  }
+
+  return null;
+}
 
 // Perform web search using DuckDuckGo HTML
 async function performWebSearch(query) {
@@ -1868,6 +2426,299 @@ async function executeToolCall(toolCall) {
         return `${expression} = ${result}`;
       } catch (e) {
         return `Error calculating "${args.expression}": ${e.message}`;
+      }
+
+    case 'send_notification':
+      try {
+        const notifResult = await sendNotification(
+          args.title || 'LLM Gateway',
+          args.message,
+          args.priority || 'default'
+        );
+        if (notifResult.success) {
+          return `Notification sent successfully via ${notifResult.provider}.`;
+        } else {
+          return `Failed to send notification: ${notifResult.error}`;
+        }
+      } catch (e) {
+        return `Error sending notification: ${e.message}`;
+      }
+
+    case 'set_reminder':
+      try {
+        const reminderTime = parseRelativeTime(args.time);
+        if (!reminderTime) {
+          return `Could not parse time "${args.time}". Try formats like "in 30 minutes", "at 3pm", or "tomorrow at 9am".`;
+        }
+
+        const now = new Date();
+        if (reminderTime <= now) {
+          return `The specified time is in the past. Please provide a future time.`;
+        }
+
+        const reminderId = `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const reminder = {
+          message: args.message,
+          dueAt: reminderTime,
+          createdAt: now
+        };
+
+        // Store in memory
+        activeReminders.set(reminderId, reminder);
+
+        // Persist to MongoDB if available
+        if (db) {
+          try {
+            await db.collection('reminders').insertOne({
+              _id: reminderId,
+              ...reminder,
+              status: 'pending'
+            });
+          } catch (e) {
+            log('warn', `Failed to persist reminder to DB: ${e.message}`);
+          }
+        }
+
+        const timeUntil = reminderTime - now;
+        const minutesUntil = Math.round(timeUntil / 60000);
+        const hoursUntil = Math.round(timeUntil / 3600000 * 10) / 10;
+
+        let timeDesc;
+        if (minutesUntil < 60) {
+          timeDesc = `${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}`;
+        } else {
+          timeDesc = `${hoursUntil} hour${hoursUntil !== 1 ? 's' : ''}`;
+        }
+
+        return `Reminder set for ${reminderTime.toLocaleString()}. I'll notify you about "${args.message}" in ${timeDesc}.`;
+      } catch (e) {
+        return `Error setting reminder: ${e.message}`;
+      }
+
+    case 'set_timer':
+      try {
+        const durationMs = parseDuration(args.duration);
+        if (!durationMs) {
+          return `Could not parse duration "${args.duration}". Try formats like "5 minutes", "1 hour", or "1h30m".`;
+        }
+
+        const timerId = `timer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const label = args.label || 'Timer';
+
+        // Set the timer
+        const timer = setTimeout(async () => {
+          log('info', `Timer completed: ${label}`);
+          await sendNotification('Timer Complete', `Your ${label} timer has finished!`, 'high');
+          activeTimers.delete(timerId);
+        }, durationMs);
+
+        activeTimers.set(timerId, {
+          timer,
+          label,
+          duration: durationMs,
+          startedAt: new Date(),
+          endsAt: new Date(Date.now() + durationMs)
+        });
+
+        const minutes = Math.round(durationMs / 60000);
+        const seconds = Math.round(durationMs / 1000);
+        let durationDesc;
+        if (minutes >= 1) {
+          durationDesc = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+        } else {
+          durationDesc = `${seconds} second${seconds !== 1 ? 's' : ''}`;
+        }
+
+        return `Timer set for ${durationDesc}. I'll notify you when "${label}" is complete.`;
+      } catch (e) {
+        return `Error setting timer: ${e.message}`;
+      }
+
+    case 'manage_todos':
+      try {
+        const action = args.action;
+
+        if (!db) {
+          return 'Todo list requires MongoDB storage to be enabled. Please configure storage in the gateway config.';
+        }
+
+        const todosCollection = db.collection('todos');
+
+        switch (action) {
+          case 'add':
+            if (!args.task) {
+              return 'Please provide a task to add.';
+            }
+            const newTodo = {
+              _id: `todo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+              task: args.task,
+              priority: args.priority || 'medium',
+              completed: false,
+              createdAt: new Date()
+            };
+            await todosCollection.insertOne(newTodo);
+            return `Added to your todo list: "${args.task}" (ID: ${newTodo._id}, Priority: ${newTodo.priority})`;
+
+          case 'list':
+            const todos = await todosCollection.find({ completed: false })
+              .sort({ priority: -1, createdAt: 1 })
+              .toArray();
+            if (todos.length === 0) {
+              return 'Your todo list is empty. Great job!';
+            }
+            const priorityEmoji = { high: '🔴', medium: '🟡', low: '🟢' };
+            const todoList = todos.map((t, i) =>
+              `${i + 1}. ${priorityEmoji[t.priority] || '⚪'} ${t.task} (ID: ${t._id})`
+            ).join('\n');
+            return `Your todo list (${todos.length} items):\n${todoList}`;
+
+          case 'complete':
+            if (!args.task_id) {
+              return 'Please provide the task ID to complete.';
+            }
+            const completeResult = await todosCollection.updateOne(
+              { _id: args.task_id },
+              { $set: { completed: true, completedAt: new Date() } }
+            );
+            if (completeResult.matchedCount === 0) {
+              return `Could not find task with ID: ${args.task_id}`;
+            }
+            return `Task marked as complete! (ID: ${args.task_id})`;
+
+          case 'delete':
+            if (!args.task_id) {
+              return 'Please provide the task ID to delete.';
+            }
+            const deleteResult = await todosCollection.deleteOne({ _id: args.task_id });
+            if (deleteResult.deletedCount === 0) {
+              return `Could not find task with ID: ${args.task_id}`;
+            }
+            return `Task deleted. (ID: ${args.task_id})`;
+
+          case 'clear_completed':
+            const clearResult = await todosCollection.deleteMany({ completed: true });
+            return `Cleared ${clearResult.deletedCount} completed task(s).`;
+
+          default:
+            return `Unknown todo action: ${action}. Use add, list, complete, delete, or clear_completed.`;
+        }
+      } catch (e) {
+        return `Error managing todos: ${e.message}`;
+      }
+
+    case 'weather_forecast':
+      try {
+        const location = args.location || 'New York';
+        const days = Math.min(Math.max(args.days || 3, 1), 3);
+
+        const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
+        const weatherResponse = await makeRequest(weatherUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'curl/7.68.0' }
+        });
+
+        if (weatherResponse.status !== 200) {
+          return `Could not get weather for "${location}". Please try a different location.`;
+        }
+
+        const weatherData = JSON.parse(weatherResponse.body);
+        const area = weatherData.nearest_area?.[0];
+        const current = weatherData.current_condition?.[0];
+        const forecast = weatherData.weather?.slice(0, days) || [];
+
+        if (!forecast.length) {
+          return `No forecast data available for "${location}".`;
+        }
+
+        let result = `Weather forecast for ${area?.areaName?.[0]?.value || location}`;
+        if (area?.country?.[0]?.value) result += `, ${area.country[0].value}`;
+        result += ':\n\n';
+
+        // Current conditions
+        if (current) {
+          result += `**Current**: ${current.temp_C}°C (${current.temp_F}°F), ${current.weatherDesc?.[0]?.value || 'N/A'}\n`;
+          result += `Humidity: ${current.humidity}%, Wind: ${current.windspeedKmph} km/h ${current.winddir16Point}\n\n`;
+        }
+
+        // Daily forecast
+        for (const day of forecast) {
+          const date = new Date(day.date);
+          const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+          const hourly = day.hourly || [];
+          const midday = hourly.find(h => h.time === '1200') || hourly[Math.floor(hourly.length / 2)] || {};
+
+          result += `**${dayName}**\n`;
+          result += `  High: ${day.maxtempC}°C (${day.maxtempF}°F), Low: ${day.mintempC}°C (${day.mintempF}°F)\n`;
+          result += `  ${midday.weatherDesc?.[0]?.value || 'N/A'}\n`;
+          result += `  Chance of rain: ${midday.chanceofrain || day.hourly?.[0]?.chanceofrain || 'N/A'}%\n\n`;
+        }
+
+        return result.trim();
+      } catch (e) {
+        return `Error getting weather forecast: ${e.message}`;
+      }
+
+    case 'convert_units':
+      try {
+        const value = parseFloat(args.value);
+        if (isNaN(value)) {
+          return `Invalid value: ${args.value}. Please provide a number.`;
+        }
+
+        const result = convertUnits(value, args.from_unit, args.to_unit);
+        if (!result) {
+          return `Cannot convert from "${args.from_unit}" to "${args.to_unit}". Make sure both units are valid and of the same type (length, weight, volume, temperature, speed, or data).`;
+        }
+
+        const roundedResult = Math.round(result.value * 10000) / 10000;
+        return `${value} ${args.from_unit} = ${roundedResult} ${args.to_unit}`;
+      } catch (e) {
+        return `Error converting units: ${e.message}`;
+      }
+
+    case 'dictionary':
+      try {
+        const word = args.word?.toLowerCase().trim();
+        if (!word) {
+          return 'Please provide a word to look up.';
+        }
+
+        const dictUrl = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+        const dictResponse = await makeRequest(dictUrl, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (dictResponse.status === 404) {
+          return `Could not find definition for "${word}". Please check the spelling.`;
+        }
+
+        if (dictResponse.status !== 200) {
+          return `Error looking up "${word}". Please try again.`;
+        }
+
+        const data = JSON.parse(dictResponse.body);
+        const entry = data[0];
+
+        let result = `**${entry.word}**`;
+        if (entry.phonetic) result += ` (${entry.phonetic})`;
+        result += '\n\n';
+
+        for (const meaning of entry.meanings?.slice(0, 3) || []) {
+          result += `*${meaning.partOfSpeech}*\n`;
+          for (const def of meaning.definitions?.slice(0, 2) || []) {
+            result += `• ${def.definition}\n`;
+            if (def.example) result += `  Example: "${def.example}"\n`;
+          }
+          if (meaning.synonyms?.length > 0) {
+            result += `  Synonyms: ${meaning.synonyms.slice(0, 5).join(', ')}\n`;
+          }
+          result += '\n';
+        }
+
+        return result.trim();
+      } catch (e) {
+        return `Error looking up word: ${e.message}`;
       }
 
     default:
@@ -4188,9 +5039,17 @@ loadConfig();
 loadRouterHistory();
 
 // Connect to MongoDB (async, non-blocking startup)
-connectMongoDB().then(() => {
+connectMongoDB().then(async () => {
   if (config.storage?.enabled) {
     log('info', `MongoDB storage: enabled (${config.storage.database})`);
+
+    // Load pending reminders from DB
+    await loadRemindersFromDB();
+  }
+
+  // Start reminder checker (works with or without MongoDB)
+  if (config.tools?.reminders?.enabled !== false) {
+    startReminderChecker();
   }
 }).catch(err => {
   log('warn', `MongoDB connection failed: ${err.message}`);
@@ -4204,6 +5063,10 @@ server.listen(PROXY_PORT, '0.0.0.0', () => {
   log('info', `Smart router: ${config.smartRouter?.enabled ? 'enabled' : 'disabled'}`);
   log('info', `Storage: ${config.storage?.enabled ? 'enabled' : 'disabled'}`);
   log('info', `Anthropic API key: ${ANTHROPIC_API_KEY ? 'set' : 'not set'}`);
+  log('info', `Tools available: ${LOCAL_MODEL_TOOLS.map(t => t.function.name).join(', ')}`);
+  if (config.tools?.notifications?.enabled) {
+    log('info', `Notifications: ${config.tools.notifications.provider} (${config.tools.notifications[config.tools.notifications.provider]?.topic || config.tools.notifications[config.tools.notifications.provider]?.chatId || 'configured'})`);
+  }
 });
 
 metricsServer.listen(METRICS_PORT, '0.0.0.0', () => {
@@ -4213,6 +5076,19 @@ metricsServer.listen(METRICS_PORT, '0.0.0.0', () => {
 // Graceful shutdown
 async function shutdown(signal) {
   log('info', `Received ${signal}, shutting down...`);
+
+  // Clear reminder checker
+  if (reminderCheckInterval) {
+    clearInterval(reminderCheckInterval);
+    reminderCheckInterval = null;
+  }
+
+  // Clear active timers
+  for (const [id, timerData] of activeTimers) {
+    clearTimeout(timerData.timer);
+  }
+  activeTimers.clear();
+
   await disconnectMongoDB();
   server.close(() => {
     metricsServer.close(() => {

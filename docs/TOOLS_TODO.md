@@ -19,54 +19,61 @@
 - [x] `web_search` - Weather, crypto, DuckDuckGo
 - [x] `get_current_time` - System clock with timezone
 - [x] `calculator` - Safe math evaluation
+- [x] `send_notification` - Ntfy.sh and Telegram support
+- [x] `set_reminder` - Relative/absolute time parsing, MongoDB persistence
+- [x] `set_timer` - In-memory timers with notifications
+- [x] `manage_todos` - Full CRUD via MongoDB
+- [x] `weather_forecast` - Multi-day forecast via wttr.in
+- [x] `convert_units` - Length, weight, volume, temperature, speed, data
+- [x] `dictionary` - Free Dictionary API integration
 
 ---
 
-## Tier 1: High Priority
+## Tier 1: High Priority - COMPLETED
 
 ### Communication
 
-- [ ] `send_notification`
-  - [ ] Research: Ntfy.sh vs Pushover vs Telegram
-  - [ ] Implement notification backend
-  - [ ] Add tool definition
+- [x] `send_notification`
+  - [x] Implemented ntfy.sh provider (default)
+  - [x] Implemented Telegram provider (optional)
+  - [x] Add tool definition
   - [ ] Test with local models
 
 ### Productivity
 
-- [ ] `set_reminder`
-  - [ ] Design reminder storage schema (MongoDB)
-  - [ ] Implement reminder scheduler (background job)
-  - [ ] Parse relative times ("in 30 minutes")
-  - [ ] Integrate with notification tool
-  - [ ] Add tool definition
+- [x] `set_reminder`
+  - [x] Design reminder storage schema (MongoDB)
+  - [x] Implement reminder scheduler (background job, 60s interval)
+  - [x] Parse relative times ("in 30 minutes", "at 3pm", "tomorrow at 9am")
+  - [x] Integrate with notification tool
+  - [x] Add tool definition
 
-- [ ] `set_timer`
-  - [ ] Implement in-memory timer
-  - [ ] Integrate with notification tool
-  - [ ] Add tool definition
+- [x] `set_timer`
+  - [x] Implement in-memory timer
+  - [x] Integrate with notification tool
+  - [x] Add tool definition
 
-- [ ] `add_todo`
-  - [ ] Decide backend: Todoist API vs local storage
-  - [ ] Implement CRUD operations
-  - [ ] Add tool definition for add/list/complete/delete
+- [x] `manage_todos`
+  - [x] Using MongoDB storage
+  - [x] Implement CRUD operations (add, list, complete, delete, clear_completed)
+  - [x] Add tool definition with priority support
 
 ### Information
 
-- [ ] `weather_forecast`
-  - [ ] Extend wttr.in integration for multi-day
-  - [ ] Format forecast data for LLM consumption
-  - [ ] Add tool definition
+- [x] `weather_forecast`
+  - [x] Extend wttr.in integration for multi-day (up to 3 days)
+  - [x] Format forecast data for LLM consumption
+  - [x] Add tool definition
 
-- [ ] `unit_converter`
-  - [ ] Implement conversion library
-  - [ ] Support: length, weight, volume, temperature, currency
-  - [ ] Add tool definition
+- [x] `convert_units`
+  - [x] Implement conversion library
+  - [x] Support: length, weight, volume, temperature, speed, data
+  - [x] Add tool definition
 
-- [ ] `dictionary`
-  - [ ] Integrate Free Dictionary API
-  - [ ] Return definition, pronunciation, examples
-  - [ ] Add tool definition
+- [x] `dictionary`
+  - [x] Integrate Free Dictionary API
+  - [x] Return definition, pronunciation, examples, synonyms
+  - [x] Add tool definition
 
 ---
 

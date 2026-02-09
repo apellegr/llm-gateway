@@ -192,11 +192,20 @@ When enabled, the gateway automatically classifies queries and routes them to th
 
 The gateway automatically injects tools for all local backend requests:
 
+### Available Tools
+
 | Tool | Description | Data Source |
 |------|-------------|-------------|
 | `web_search` | Search for current information | wttr.in (weather), CoinGecko (crypto), DuckDuckGo (general) |
 | `get_current_time` | Get current date/time with timezone | System clock |
 | `calculator` | Evaluate math expressions | Safe eval (sqrt, pow, trig, etc.) |
+| `send_notification` | Send push notifications | Ntfy.sh or Telegram |
+| `set_reminder` | Set reminders for later | MongoDB + notifications |
+| `set_timer` | Set countdown timers | In-memory + notifications |
+| `manage_todos` | Todo list management | MongoDB |
+| `weather_forecast` | Multi-day weather forecast | wttr.in |
+| `convert_units` | Unit conversion | Built-in (length, weight, volume, temp, speed, data) |
+| `dictionary` | Word definitions | Free Dictionary API |
 
 ### Tool Execution Flow
 
@@ -211,6 +220,61 @@ The gateway automatically injects tools for all local backend requests:
    c. Repeat up to 3 rounds
 6. Return final response with real data
 ```
+
+### Example Queries
+
+**Information Tools:**
+- "What's the weather in Tokyo?" → `web_search`
+- "What's the forecast for next 3 days in London?" → `weather_forecast`
+- "What time is it in New York?" → `get_current_time`
+- "What is 127 * 43?" → `calculator`
+- "Convert 100 miles to kilometers" → `convert_units`
+- "Define 'ephemeral'" → `dictionary`
+- "What's the Bitcoin price?" → `web_search`
+
+**Productivity Tools:**
+- "Remind me to call mom in 30 minutes" → `set_reminder`
+- "Set a timer for 5 minutes" → `set_timer`
+- "Add 'buy milk' to my todo list" → `manage_todos`
+- "Show my todos" → `manage_todos`
+- "Mark task todo_123 as complete" → `manage_todos`
+
+**Communication:**
+- "Send me a notification saying 'Hello!'" → `send_notification`
+
+### Tools Configuration
+
+Configure tools in `config.json`:
+
+```json
+{
+  "tools": {
+    "notifications": {
+      "enabled": true,
+      "provider": "ntfy",
+      "ntfy": {
+        "server": "https://ntfy.sh",
+        "topic": "your-topic-name"
+      },
+      "telegram": {
+        "botToken": "your-bot-token",
+        "chatId": "your-chat-id"
+      }
+    },
+    "reminders": {
+      "enabled": true,
+      "checkIntervalMs": 60000
+    },
+    "todos": {
+      "enabled": true
+    }
+  }
+}
+```
+
+**Environment Variables for Notifications:**
+- `TELEGRAM_BOT_TOKEN` - Telegram bot token (if using Telegram provider)
+- `TELEGRAM_CHAT_ID` - Telegram chat ID to send notifications to
 
 ### Real-Time Data Sources
 
