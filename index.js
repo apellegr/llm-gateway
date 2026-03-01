@@ -2975,13 +2975,15 @@ function convertStreamChunk(chunk, state) {
 
       try {
         const parsed = JSON.parse(data);
-        // Handle both regular content and reasoning_content (for thinking models)
+        // Only stream content deltas — skip reasoning_content (thinking tokens)
+        // Thinking models (Qwen3, DeepSeek-R1, etc.) emit reasoning_content
+        // separately; we discard it to avoid leaking internal monologue to users
         const deltaObj = parsed.choices?.[0]?.delta || {};
-        const delta = deltaObj.content || deltaObj.reasoning_content || '';
+        const delta = deltaObj.content || '';
 
         // Debug: log what we're receiving
-        if (delta) {
-          log('debug', 'Stream chunk delta', { content: delta.substring(0, 50), hasContent: !!deltaObj.content, hasReasoning: !!deltaObj.reasoning_content });
+        if (delta || deltaObj.reasoning_content) {
+          log('debug', 'Stream chunk delta', { content: (delta || '').substring(0, 50), hasContent: !!deltaObj.content, hasReasoning: !!deltaObj.reasoning_content, reasoningSkipped: !!deltaObj.reasoning_content && !deltaObj.content });
         }
 
         // Initialize on first chunk
@@ -3490,8 +3492,8 @@ async function handleProxyRequest(req, res, body) {
         routingDecision = getRoutingRecommendation(classification, contextLength, userId);
         backend = routingDecision.backend;
 
-        // Route requests with tools to Anthropic (Claude actually uses tools reliably)
-        // Local models often ignore tool definitions
+        // Route requests with tools to Anthropic (local backends reject clawdbot's tool format)
+        // Clawdbot's tools use complex schemas that llama.cpp doesn't support
         if (requestAlreadyHasTools && backend !== 'anthropic') {
           log('info', `Routing to Anthropic - request has ${parsedRequestBody.tools.length} tools`, { requestId });
           backend = 'anthropic';
@@ -3669,11 +3671,17 @@ async function handleProxyRequest(req, res, body) {
       // OpenAI Responses API -> Anthropic conversion
       // First convert to Chat Completions, then to Anthropic
       const chatCompletions = responsesToChatCompletions(body, false);
-      requestBody = JSON.stringify(openAIToAnthropic(JSON.stringify(chatCompletions)));
+      const anthropicBody = openAIToAnthropic(JSON.stringify(chatCompletions));
+      // Save original streaming preference - we'll need to emit as streaming if client expected it
+      const originalWantedStreaming = parsedBody.stream === true;
+      // Disable streaming for Anthropic (we'll convert to streaming events on response)
+      anthropicBody.stream = false;
+      requestBody = JSON.stringify(anthropicBody);
       targetPath = '/v1/messages';
       requestLog.formatConversion = 'responses-to-anthropic';
+      requestLog.originalWantedStreaming = originalWantedStreaming;
       needsResponseConversion = true;
-      log('debug', 'Converting Responses API to Anthropic format', { requestId });
+      log('debug', `Converting Responses API to Anthropic format (streaming: ${originalWantedStreaming})`, { requestId });
     } else if (isAnthropicFormat && isLocalBackend) {
       // Anthropic -> OpenAI conversion
       requestBody = JSON.stringify(anthropicToOpenAI(body));
@@ -3766,6 +3774,15 @@ async function handleProxyRequest(req, res, body) {
       try {
         responseBody = JSON.stringify(anthropicResponseToOpenAI(proxyResponse.body, backend));
         log('debug', 'Converted Anthropic response to OpenAI format', { requestId });
+      } catch (e) {
+        log('warn', 'Failed to convert response format', { requestId, error: e.message });
+      }
+    } else if (requestLog.formatConversion === 'responses-to-anthropic' && proxyResponse.status === 200) {
+      // Anthropic response -> OpenAI -> Responses API
+      try {
+        const openAIResponse = anthropicResponseToOpenAI(proxyResponse.body, requestLog.model);
+        responseBody = JSON.stringify(chatCompletionsToResponses(openAIResponse, requestLog.model, false));
+        log('debug', 'Converted Anthropic response to Responses API format', { requestId });
       } catch (e) {
         log('warn', 'Failed to convert response format', { requestId, error: e.message });
       }
@@ -3930,13 +3947,93 @@ async function handleProxyRequest(req, res, body) {
     });
 
     // Send response to client
-    res.writeHead(proxyResponse.status, {
-      'Content-Type': 'application/json',
-      'X-Request-Id': requestId,
-      'X-Backend': backend,
-      'X-Timing-Ms': requestLog.timing.totalMs.toString()
-    });
-    res.end(responseBody);
+    // If client originally wanted streaming but we converted to non-streaming internally,
+    // emit the response as streaming events
+    if (requestLog.originalWantedStreaming && requestLog.formatConversion === 'responses-to-anthropic') {
+      try {
+        const responsesObj = JSON.parse(responseBody);
+        const textContent = responsesObj.output?.[0]?.content?.[0]?.text || '';
+        const responseId = responsesObj.id || 'resp_' + Date.now();
+        const messageId = responsesObj.output?.[0]?.id || 'msg_' + Date.now();
+        const modelName = responsesObj.model || requestLog.model || 'claude-sonnet-4';
+
+        // Emit as streaming events
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Request-Id': requestId,
+          'X-Backend': backend
+        });
+
+        // Emit the full text as a single delta (simulating streaming completion)
+        const events = [
+          {
+            type: 'response.created',
+            response: { id: responseId, object: 'response', model: modelName, status: 'in_progress' }
+          },
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: { type: 'message', id: messageId, role: 'assistant', status: 'in_progress', content: [] }
+          },
+          {
+            type: 'response.content_part.added',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'output_text', text: '' }
+          },
+          {
+            type: 'response.output_text.delta',
+            output_index: 0,
+            content_index: 0,
+            delta: textContent
+          },
+          {
+            type: 'response.output_text.done',
+            output_index: 0,
+            content_index: 0,
+            text: textContent
+          },
+          {
+            type: 'response.output_item.done',
+            output_index: 0,
+            item: {
+              type: 'message',
+              id: messageId,
+              status: 'completed',
+              role: 'assistant',
+              content: [{ type: 'output_text', text: textContent }]
+            }
+          },
+          {
+            type: 'response.done',
+            response: responsesObj
+          }
+        ];
+
+        res.write(formatResponsesSSE(events));
+        res.end();
+        log('info', 'Emitted response as streaming events for Responses API client', { requestId });
+      } catch (e) {
+        log('warn', 'Failed to emit streaming events, falling back to JSON', { requestId, error: e.message });
+        res.writeHead(proxyResponse.status, {
+          'Content-Type': 'application/json',
+          'X-Request-Id': requestId,
+          'X-Backend': backend,
+          'X-Timing-Ms': requestLog.timing.totalMs.toString()
+        });
+        res.end(responseBody);
+      }
+    } else {
+      res.writeHead(proxyResponse.status, {
+        'Content-Type': 'application/json',
+        'X-Request-Id': requestId,
+        'X-Backend': backend,
+        'X-Timing-Ms': requestLog.timing.totalMs.toString()
+      });
+      res.end(responseBody);
+    }
 
   } catch (err) {
     metrics.errors_total++;
