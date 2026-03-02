@@ -3834,7 +3834,7 @@ async function handleProxyRequest(req, res, body) {
 
     // Skip tool injection if request already has tools defined
     // (e.g., Clawdbot already provides its own tools)
-    const requestHasTools = parsedBody.tools && parsedBody.tools.length > 0;
+    let requestHasTools = parsedBody.tools && parsedBody.tools.length > 0;
     // Save original streaming preference before any modifications
     const clientWantedStreaming = parsedBody.stream === true;
 
@@ -3842,6 +3842,17 @@ async function handleProxyRequest(req, res, body) {
     // This enables tool calling for weather, news, calculations, etc.
     // Merge with client tools if present (e.g., clawdbot's read/write/exec)
     if (isLocalBackend) {
+      // For simple queries (conversation, realtime), strip client tools to reduce
+      // prompt size (~22s savings at 153 tok/s). The model can still see results
+      // from previous client tool calls in conversation history.
+      if (requestHasTools && !needsClientTools(messages)) {
+        const strippedCount = parsedBody.tools.length;
+        parsedBody.tools = [];
+        requestHasTools = false;
+        log('info', `Stripped ${strippedCount} client tools (simple query detected)`, { requestId });
+        requestLog.clientToolsStripped = strippedCount;
+      }
+
       const existingToolNames = new Set((parsedBody.tools || []).map(t =>
         t.function?.name || t.name
       ));
