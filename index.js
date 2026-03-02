@@ -3209,51 +3209,79 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
   }
 
   const output = [];
-
-  // For Hermes models, parse tool calls from the content
-  // Check for both XML-wrapped (<tool_call>) and JSON-only formats
-  const maybeToolCall = isHermes && (
-    content.includes('<tool_call>') ||
-    (content.trim().startsWith('{') && content.includes('"name"'))
-  );
-
   let foundToolCalls = false;
 
-  if (maybeToolCall) {
-    const { toolCalls, cleanContent } = parseHermesToolCalls(content);
+  // Check for standard OpenAI-style tool_calls (used by GPT-OSS, Llama, etc.)
+  if (message.tool_calls && message.tool_calls.length > 0) {
+    foundToolCalls = true;
 
-    if (toolCalls.length > 0) {
-      foundToolCalls = true;
+    // Add text content if any (model may include text alongside tool calls)
+    if (content) {
+      output.push({
+        type: 'message',
+        id: 'msg_' + Date.now(),
+        status: 'completed',
+        role: 'assistant',
+        content: [{
+          type: 'output_text',
+          text: content
+        }]
+      });
+    }
 
-      // Add text content if any
-      if (cleanContent) {
-        output.push({
-          type: 'message',
-          id: 'msg_' + Date.now(),
-          status: 'completed',
-          role: 'assistant',
-          content: [{
-            type: 'output_text',
-            text: cleanContent
-          }]
-        });
-      }
+    // Convert OpenAI tool_calls to Responses API function_call output items
+    for (const tc of message.tool_calls) {
+      output.push({
+        type: 'function_call',
+        id: tc.id || ('call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+        call_id: tc.id || ('call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+        name: tc.function.name,
+        arguments: typeof tc.function.arguments === 'string'
+          ? tc.function.arguments
+          : JSON.stringify(tc.function.arguments)
+      });
+    }
+  }
 
-      // Add tool calls
-      for (const toolCall of toolCalls) {
-        output.push({
-          type: 'function_call',
-          id: toolCall.id,
-          call_id: toolCall.id,
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments
-        });
+  // For Hermes models, parse tool calls from the content (XML or JSON format)
+  if (!foundToolCalls && isHermes) {
+    const maybeToolCall = content.includes('<tool_call>') ||
+      (content.trim().startsWith('{') && content.includes('"name"'));
+
+    if (maybeToolCall) {
+      const { toolCalls, cleanContent } = parseHermesToolCalls(content);
+
+      if (toolCalls.length > 0) {
+        foundToolCalls = true;
+
+        if (cleanContent) {
+          output.push({
+            type: 'message',
+            id: 'msg_' + Date.now(),
+            status: 'completed',
+            role: 'assistant',
+            content: [{
+              type: 'output_text',
+              text: cleanContent
+            }]
+          });
+        }
+
+        for (const toolCall of toolCalls) {
+          output.push({
+            type: 'function_call',
+            id: toolCall.id,
+            call_id: toolCall.id,
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments
+          });
+        }
       }
     }
   }
 
   if (!foundToolCalls) {
-    // Regular message output
+    // Regular message output (no tool calls)
     output.push({
       type: 'message',
       id: 'msg_' + Date.now(),
@@ -4093,51 +4121,79 @@ async function handleProxyRequest(req, res, body) {
           'X-Backend': backend
         });
 
-        // Emit the full text as a single delta (simulating streaming completion)
+        // Build SSE events for each output item (messages and function_calls)
         const events = [
           {
             type: 'response.created',
             response: { id: responseId, object: 'response', model: modelName, status: 'in_progress' }
-          },
-          {
-            type: 'response.output_item.added',
-            output_index: 0,
-            item: { type: 'message', id: messageId, role: 'assistant', status: 'in_progress', content: [] }
-          },
-          {
-            type: 'response.content_part.added',
-            output_index: 0,
-            content_index: 0,
-            part: { type: 'output_text', text: '' }
-          },
-          {
-            type: 'response.output_text.delta',
-            output_index: 0,
-            content_index: 0,
-            delta: textContent
-          },
-          {
-            type: 'response.output_text.done',
-            output_index: 0,
-            content_index: 0,
-            text: textContent
-          },
-          {
-            type: 'response.output_item.done',
-            output_index: 0,
-            item: {
-              type: 'message',
-              id: messageId,
-              status: 'completed',
-              role: 'assistant',
-              content: [{ type: 'output_text', text: textContent }]
-            }
-          },
-          {
-            type: 'response.done',
-            response: responsesObj
           }
         ];
+
+        const outputItems = responsesObj.output || [];
+        for (let i = 0; i < outputItems.length; i++) {
+          const item = outputItems[i];
+
+          if (item.type === 'function_call') {
+            // Emit function_call as a single output item (added + done)
+            events.push({
+              type: 'response.output_item.added',
+              output_index: i,
+              item: { type: 'function_call', id: item.id, call_id: item.call_id, name: item.name, arguments: '', status: 'in_progress' }
+            });
+            events.push({
+              type: 'response.function_call_arguments.delta',
+              output_index: i,
+              delta: item.arguments || ''
+            });
+            events.push({
+              type: 'response.function_call_arguments.done',
+              output_index: i,
+              arguments: item.arguments || ''
+            });
+            events.push({
+              type: 'response.output_item.done',
+              output_index: i,
+              item: item
+            });
+          } else {
+            // Message output item — emit text content with deltas
+            const itemText = item.content?.[0]?.text || '';
+            const itemId = item.id || ('msg_' + Date.now());
+            events.push({
+              type: 'response.output_item.added',
+              output_index: i,
+              item: { type: 'message', id: itemId, role: 'assistant', status: 'in_progress', content: [] }
+            });
+            events.push({
+              type: 'response.content_part.added',
+              output_index: i,
+              content_index: 0,
+              part: { type: 'output_text', text: '' }
+            });
+            events.push({
+              type: 'response.output_text.delta',
+              output_index: i,
+              content_index: 0,
+              delta: itemText
+            });
+            events.push({
+              type: 'response.output_text.done',
+              output_index: i,
+              content_index: 0,
+              text: itemText
+            });
+            events.push({
+              type: 'response.output_item.done',
+              output_index: i,
+              item: { ...item, status: 'completed' }
+            });
+          }
+        }
+
+        events.push({
+          type: 'response.completed',
+          response: responsesObj
+        });
 
         res.write(formatResponsesSSE(events));
         res.end();
