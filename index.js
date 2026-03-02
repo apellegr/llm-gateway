@@ -1919,7 +1919,7 @@ async function performWebSearch(query) {
         const weatherResponse = await makeRequest(weatherUrl, {
           method: 'GET',
           headers: { 'User-Agent': 'curl/7.68.0' }
-        }, null, false, 8000);
+        }, null, false, 3000);
 
         if (weatherResponse.status === 200) {
           const weatherData = JSON.parse(weatherResponse.body);
@@ -2207,7 +2207,7 @@ Natural gas prices vary by region and are quoted in $/MMBtu in the US.`,
             'X-Subscription-Token': BRAVE_SEARCH_API_KEY,
             'Accept': 'application/json'
           }
-        }, null, false, 8000);
+        }, null, false, 3000);
 
         if (searchResponse.status === 200) {
           const data = JSON.parse(searchResponse.body);
@@ -2685,7 +2685,7 @@ async function executeToolCall(toolCall) {
           const weatherResponse = await makeRequest(weatherUrl, {
             method: 'GET',
             headers: { 'User-Agent': 'curl/7.68.0' }
-          }, null, false, 8000);
+          }, null, false, 3000);
 
           if (weatherResponse.status === 200) {
             const weatherData = JSON.parse(weatherResponse.body);
