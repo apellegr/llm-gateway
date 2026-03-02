@@ -1856,37 +1856,37 @@ async function performWebSearch(query) {
       const inPattern = queryLower.match(/(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/);
       if (inPattern) location = inPattern[1];
 
-      // Pattern 2: "<location> weather" - location before weather word
-      if (!location) {
-        const endPattern = queryLower.match(/^(.+?)\s+(?:weather|temperature|forecast)\b/);
-        if (endPattern) location = endPattern[1];
-      }
-
-      // Pattern 2b: "weather <location>" or "current weather <location>" - no preposition
+      // Pattern 2: "weather <location>" or "current weather <location>" - no preposition
       if (!location) {
         const directPattern = queryLower.match(/(?:current\s+)?(?:weather|temperature|forecast)\s+([A-Za-z][A-Za-z\s,]+?)(?:\s+today|\s+tomorrow|\s+tonight|\s+this|\s+now|\?|$)/i);
         if (directPattern) location = directPattern[1];
       }
 
-      // Pattern 3: "what is the weather in <location>"
+      // Pattern 3: "<location> weather" - location before weather word
+      if (!location) {
+        const endPattern = queryLower.match(/^(.+?)\s+(?:weather|temperature|forecast)\b/);
+        if (endPattern) location = endPattern[1];
+      }
+
+      // Pattern 4: "what is the weather in <location>"
       if (!location) {
         const whatPattern = queryLower.match(/what(?:'s| is| the)?\s+(?:the\s+)?(?:current\s+)?(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/i);
         if (whatPattern) location = whatPattern[1];
       }
 
-      // Pattern 4: Implicit queries - "umbrella in <location>", "raining in <location>", etc.
+      // Pattern 5: Implicit queries - "umbrella in <location>", "raining in <location>", etc.
       if (!location) {
         const implicitInPattern = queryLower.match(/(?:umbrella|rain|snow|cold|hot|warm|jacket|coat|wear)\s+(?:in|for|at|to)\s+(.+?)(?:\s+today|\s+tomorrow|\s+tonight|\?|$)/i);
         if (implicitInPattern) location = implicitInPattern[1];
       }
 
-      // Pattern 5: "Is it raining in <location>?" / "Will it rain in <location>?"
+      // Pattern 6: "Is it raining in <location>?" / "Will it rain in <location>?"
       if (!location) {
         const conditionInPattern = queryLower.match(/(?:is it|will it|going to)\s+(?:be\s+)?(?:rain|snow|storm|sunny|cloudy|cold|hot|warm)(?:ing|y)?\s+(?:in|at)\s+(.+?)(?:\?|$)/i);
         if (conditionInPattern) location = conditionInPattern[1];
       }
 
-      // Pattern 6: Location at the end - "Do I need an umbrella in Paris today?"
+      // Pattern 7: Location at the end - "Do I need an umbrella in Paris today?"
       if (!location) {
         const locationEndPattern = queryLower.match(/(?:in|at|to)\s+([A-Za-z][A-Za-z\s]+?)(?:\s+today|\s+tomorrow|\s+tonight|\s+this|\s+next|\?|$)/i);
         if (locationEndPattern) location = locationEndPattern[1];
@@ -1905,14 +1905,14 @@ async function performWebSearch(query) {
 
       log('info', `Weather query detected, using wttr.in for: ${location}`);
 
-      const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
-      const weatherResponse = await makeRequest(weatherUrl, {
-        method: 'GET',
-        headers: { 'User-Agent': 'curl/7.68.0' }
-      }, null, false, 15000);
+      try {
+        const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
+        const weatherResponse = await makeRequest(weatherUrl, {
+          method: 'GET',
+          headers: { 'User-Agent': 'curl/7.68.0' }
+        }, null, false, 15000);
 
-      if (weatherResponse.status === 200) {
-        try {
+        if (weatherResponse.status === 200) {
           const weatherData = JSON.parse(weatherResponse.body);
           const current = weatherData.current_condition?.[0];
           const area = weatherData.nearest_area?.[0];
@@ -1944,9 +1944,9 @@ async function performWebSearch(query) {
               timestamp: new Date().toISOString()
             };
           }
-        } catch (parseErr) {
-          log('warn', `Failed to parse weather data: ${parseErr.message}`);
         }
+      } catch (weatherErr) {
+        log('warn', `wttr.in failed: ${weatherErr.message}, falling through to Brave Search`);
       }
     }
 
