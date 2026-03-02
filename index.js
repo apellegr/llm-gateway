@@ -2678,49 +2678,57 @@ async function executeToolCall(toolCall) {
         const location = args.location || 'New York';
         const days = Math.min(Math.max(args.days || 3, 1), 3);
 
-        const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
-        const weatherResponse = await makeRequest(weatherUrl, {
-          method: 'GET',
-          headers: { 'User-Agent': 'curl/7.68.0' }
-        }, null, false, 8000);
+        // Try wttr.in first (structured data), fall back to Brave Search
+        let weatherResult = null;
+        try {
+          const weatherUrl = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
+          const weatherResponse = await makeRequest(weatherUrl, {
+            method: 'GET',
+            headers: { 'User-Agent': 'curl/7.68.0' }
+          }, null, false, 8000);
 
-        if (weatherResponse.status !== 200) {
-          return `Could not get weather for "${location}". Please try a different location.`;
+          if (weatherResponse.status === 200) {
+            const weatherData = JSON.parse(weatherResponse.body);
+            const area = weatherData.nearest_area?.[0];
+            const current = weatherData.current_condition?.[0];
+            const forecast = weatherData.weather?.slice(0, days) || [];
+
+            if (forecast.length) {
+              let result = `Weather forecast for ${area?.areaName?.[0]?.value || location}`;
+              if (area?.country?.[0]?.value) result += `, ${area.country[0].value}`;
+              result += ':\n\n';
+
+              if (current) {
+                result += `**Current**: ${current.temp_C}°C (${current.temp_F}°F), ${current.weatherDesc?.[0]?.value || 'N/A'}\n`;
+                result += `Humidity: ${current.humidity}%, Wind: ${current.windspeedKmph} km/h ${current.winddir16Point}\n\n`;
+              }
+
+              for (const day of forecast) {
+                const date = new Date(day.date);
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                const hourly = day.hourly || [];
+                const midday = hourly.find(h => h.time === '1200') || hourly[Math.floor(hourly.length / 2)] || {};
+
+                result += `**${dayName}**\n`;
+                result += `  High: ${day.maxtempC}°C (${day.maxtempF}°F), Low: ${day.mintempC}°C (${day.mintempF}°F)\n`;
+                result += `  ${midday.weatherDesc?.[0]?.value || 'N/A'}\n`;
+                result += `  Chance of rain: ${midday.chanceofrain || day.hourly?.[0]?.chanceofrain || 'N/A'}%\n\n`;
+              }
+              weatherResult = result.trim();
+            }
+          }
+        } catch (wttrErr) {
+          log('warn', `wttr.in failed for weather_forecast: ${wttrErr.message}, trying Brave Search`);
         }
 
-        const weatherData = JSON.parse(weatherResponse.body);
-        const area = weatherData.nearest_area?.[0];
-        const current = weatherData.current_condition?.[0];
-        const forecast = weatherData.weather?.slice(0, days) || [];
-
-        if (!forecast.length) {
-          return `No forecast data available for "${location}".`;
+        // Fallback to Brave Search for weather
+        if (!weatherResult && BRAVE_SEARCH_API_KEY) {
+          log('info', `Falling back to Brave Search for weather in ${location}`);
+          const searchResults = await performWebSearch(`weather forecast ${location} today`);
+          weatherResult = formatSearchResults(searchResults);
         }
 
-        let result = `Weather forecast for ${area?.areaName?.[0]?.value || location}`;
-        if (area?.country?.[0]?.value) result += `, ${area.country[0].value}`;
-        result += ':\n\n';
-
-        // Current conditions
-        if (current) {
-          result += `**Current**: ${current.temp_C}°C (${current.temp_F}°F), ${current.weatherDesc?.[0]?.value || 'N/A'}\n`;
-          result += `Humidity: ${current.humidity}%, Wind: ${current.windspeedKmph} km/h ${current.winddir16Point}\n\n`;
-        }
-
-        // Daily forecast
-        for (const day of forecast) {
-          const date = new Date(day.date);
-          const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-          const hourly = day.hourly || [];
-          const midday = hourly.find(h => h.time === '1200') || hourly[Math.floor(hourly.length / 2)] || {};
-
-          result += `**${dayName}**\n`;
-          result += `  High: ${day.maxtempC}°C (${day.maxtempF}°F), Low: ${day.mintempC}°C (${day.mintempF}°F)\n`;
-          result += `  ${midday.weatherDesc?.[0]?.value || 'N/A'}\n`;
-          result += `  Chance of rain: ${midday.chanceofrain || day.hourly?.[0]?.chanceofrain || 'N/A'}%\n\n`;
-        }
-
-        return result.trim();
+        return weatherResult || `Could not get weather for "${location}". Please try again later.`;
       } catch (e) {
         return `Error getting weather forecast: ${e.message}`;
       }
