@@ -44,6 +44,7 @@ const CONFIG_PATH = process.env.CONFIG_PATH || '/config/config.json';
 const PROXY_PORT = parseInt(process.env.PROXY_PORT || '8080');
 const METRICS_PORT = parseInt(process.env.METRICS_PORT || '9090');
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const BRAVE_SEARCH_API_KEY = process.env.BRAVE_SEARCH_API_KEY;
 
 // Default configuration - override via config.json or CONFIG_PATH
 let config = {
@@ -2172,8 +2173,44 @@ Natural gas prices vary by region and are quoted in $/MMBtu in the US.`,
       }
     }
 
-    // For other queries, return a helpful message since DuckDuckGo blocks automated requests
-    log('info', `General search query - returning guidance`);
+    // For general queries, use Brave Search API if available
+    if (BRAVE_SEARCH_API_KEY) {
+      log('info', `General search query - using Brave Search API`);
+      try {
+        const searchUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5&freshness=pd`;
+        const searchResponse = await makeRequest(searchUrl, {
+          method: 'GET',
+          headers: {
+            'X-Subscription-Token': BRAVE_SEARCH_API_KEY,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (searchResponse.status === 200) {
+          const data = JSON.parse(searchResponse.body);
+          const results = data.web?.results?.map(r => ({
+            title: r.title,
+            url: r.url,
+            description: r.description
+          })) || [];
+
+          log('info', `Brave Search returned ${results.length} results for: "${query}"`);
+          return {
+            query,
+            type: 'web',
+            results,
+            timestamp: new Date().toISOString()
+          };
+        } else {
+          log('warn', `Brave Search API returned status ${searchResponse.status}`);
+        }
+      } catch (braveErr) {
+        log('warn', `Brave Search API error: ${braveErr.message}`);
+      }
+    }
+
+    // Fallback when Brave Search is unavailable
+    log('info', `General search query - returning guidance (no search API key)`);
     return {
       query,
       type: 'search',
@@ -2892,12 +2929,9 @@ function responsesToChatCompletions(body, isHermes = false) {
     top_p: parsed.top_p,
     // Preserve stream setting from original request (defaults to true for format conversion)
     stream: parsed.stream !== false,
-    stop: parsed.stop
-    // Note: tools intentionally omitted for local backends.
-    // Gateway tools (web_search etc.) are stubs without real API keys,
-    // and client tools can't round-trip through the gateway.
-    // The model produces better answers without tools (answers directly
-    // instead of wasting tokens reasoning about which tools to call).
+    stop: parsed.stop,
+    // Include tools if present - gateway now has real tool execution (Brave Search, weather, etc.)
+    ...(convertedTools && convertedTools.length > 0 ? { tools: convertedTools, tool_choice: 'auto' } : {})
   };
 }
 
@@ -3266,7 +3300,7 @@ function makeRequest(url, options, body, isStreaming = false) {
     });
 
     req.on('error', reject);
-    req.setTimeout(120000, () => {
+    req.setTimeout(300000, () => {
       req.destroy();
       reject(new Error('Request timeout'));
     });
@@ -3653,6 +3687,8 @@ async function handleProxyRequest(req, res, body) {
     // Skip tool injection if request already has tools defined
     // (e.g., Clawdbot already provides its own tools)
     const requestHasTools = parsedBody.tools && parsedBody.tools.length > 0;
+    // Save original streaming preference before any modifications
+    const clientWantedStreaming = parsedBody.stream === true;
 
     // ALWAYS inject tools for local backends (let the model decide when to use them)
     // This enables tool calling for weather, news, calculations, etc.
@@ -3683,7 +3719,20 @@ async function handleProxyRequest(req, res, body) {
     // Convert formats if needed
     if (isResponsesAPI && isLocalBackend) {
       // OpenAI Responses API -> Chat Completions conversion
-      requestBody = JSON.stringify(responsesToChatCompletions(body, isHermes));
+      const chatCompBody = responsesToChatCompletions(body, isHermes);
+
+      // Save original streaming preference for SSE emission later
+      // Use clientWantedStreaming (saved before tool injection may have modified parsedBody.stream)
+      requestLog.originalWantedStreaming = clientWantedStreaming;
+
+      // Force non-streaming so we can intercept and execute tool calls
+      chatCompBody.stream = false;
+      if (clientWantedStreaming) {
+        requestLog.streamingDisabledForResponsesAPI = true;
+        log('debug', 'Disabled streaming for Responses API tool call handling', { requestId });
+      }
+
+      requestBody = JSON.stringify(chatCompBody);
       targetPath = '/v1/chat/completions';  // Redirect to chat completions endpoint
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
@@ -3767,6 +3816,8 @@ async function handleProxyRequest(req, res, body) {
     }
 
     // Process non-streaming response
+    // Save raw response for tool call detection (before format conversion)
+    const rawResponseBody = proxyResponse.body;
     let responseBody = proxyResponse.body;
 
     // Convert response format if needed
@@ -3809,15 +3860,18 @@ async function handleProxyRequest(req, res, body) {
       }
     }
 
-    // Handle tool calls if we injected tools and got a successful response
-    if (injectedTools && proxyResponse.status === 200 && !isStreaming) {
+    // Handle tool calls if tools are present (injected or client-provided) and got a successful response
+    // Use raw response (Chat Completions format) for detection since responseBody may already be converted
+    const hasToolsInRequest = injectedTools || (needsResponseConversion && requestHasTools);
+    if (hasToolsInRequest && proxyResponse.status === 200 && !isStreaming) {
       try {
-        const responseParsed = JSON.parse(responseBody);
+        // Parse raw Chat Completions response for tool call detection
+        const rawParsed = JSON.parse(rawResponseBody);
         let toolCalls = [];
         let contentBeforeToolCall = '';
 
         // Check for OpenAI-style tool calls
-        const choice = responseParsed.choices?.[0];
+        const choice = rawParsed.choices?.[0];
         if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
           toolCalls = choice.message.tool_calls;
           contentBeforeToolCall = choice.message.content || '';
@@ -3846,9 +3900,10 @@ async function handleProxyRequest(req, res, body) {
             });
           }
 
-          // Build follow-up request with tool results
+          // Build follow-up in Chat Completions format (using the converted request body)
+          const chatCompParsed = JSON.parse(requestBody);
           const followUpMessages = [
-            ...(parsedBody.messages || []),
+            ...(chatCompParsed.messages || []),
             {
               role: 'assistant',
               content: contentBeforeToolCall || null,
@@ -3858,9 +3913,9 @@ async function handleProxyRequest(req, res, body) {
           ];
 
           // Remove tools from follow-up to prevent model from making more tool calls
-          const { tools: _, tool_choice: __, ...restOfParsedBody } = parsedBody;
+          const { tools: _, tool_choice: __, ...restOfChatComp } = chatCompParsed;
           const followUpBody = {
-            ...restOfParsedBody,
+            ...restOfChatComp,
             messages: followUpMessages
           };
 
@@ -3872,7 +3927,13 @@ async function handleProxyRequest(req, res, body) {
           }, JSON.stringify(followUpBody), false);
 
           if (followUpResponse.status === 200) {
-            responseBody = followUpResponse.body;
+            // If Responses API conversion is needed, convert the follow-up response
+            if (needsResponseConversion) {
+              const isHermesResponse = requestLog.isHermes || requestLog.formatConversion?.includes('hermes');
+              responseBody = JSON.stringify(chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResponse));
+            } else {
+              responseBody = followUpResponse.body;
+            }
             requestLog.toolCallFollowUp = true;
             log('info', `Tool call follow-up completed`, { requestId });
           } else {
@@ -3968,7 +4029,11 @@ async function handleProxyRequest(req, res, body) {
     // Send response to client
     // If client originally wanted streaming but we converted to non-streaming internally,
     // emit the response as streaming events
-    if (requestLog.originalWantedStreaming && requestLog.formatConversion === 'responses-to-anthropic') {
+    const isResponsesAPIStreaming = requestLog.originalWantedStreaming && (
+      requestLog.formatConversion === 'responses-to-anthropic' ||
+      requestLog.formatConversion?.startsWith('responses-to-chat-completions')
+    );
+    if (isResponsesAPIStreaming) {
       try {
         const responsesObj = JSON.parse(responseBody);
         const textContent = responsesObj.output?.[0]?.content?.[0]?.text || '';
