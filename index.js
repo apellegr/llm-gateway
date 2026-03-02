@@ -3785,18 +3785,27 @@ async function handleProxyRequest(req, res, body) {
     // Save original streaming preference before any modifications
     const clientWantedStreaming = parsedBody.stream === true;
 
-    // ALWAYS inject tools for local backends (let the model decide when to use them)
+    // ALWAYS inject gateway tools for local backends (let the model decide when to use them)
     // This enables tool calling for weather, news, calculations, etc.
-    if (isLocalBackend && !requestHasTools) {
-      // Inject all available tools for local models
-      parsedBody.tools = [...LOCAL_MODEL_TOOLS];
-      injectedTools = true;
-      requestLog.toolsInjected = LOCAL_MODEL_TOOLS.map(t => t.function.name);
-      log('info', `Injected ${LOCAL_MODEL_TOOLS.length} tools for local backend`, {
-        requestId,
-        model: modelName,
-        tools: LOCAL_MODEL_TOOLS.map(t => t.function.name)
-      });
+    // Merge with client tools if present (e.g., clawdbot's read/write/exec)
+    if (isLocalBackend) {
+      const existingToolNames = new Set((parsedBody.tools || []).map(t =>
+        t.function?.name || t.name
+      ));
+      // Add gateway tools that aren't already in the request
+      const newTools = LOCAL_MODEL_TOOLS.filter(t =>
+        !existingToolNames.has(t.function.name)
+      );
+      if (newTools.length > 0) {
+        parsedBody.tools = [...(parsedBody.tools || []), ...newTools];
+        injectedTools = true;
+        requestLog.toolsInjected = newTools.map(t => t.function.name);
+        log('info', `Injected ${newTools.length} gateway tools for local backend${requestHasTools ? ` (alongside ${existingToolNames.size} client tools)` : ''}`, {
+          requestId,
+          model: modelName,
+          tools: newTools.map(t => t.function.name)
+        });
+      }
 
       // Force non-streaming so we can handle tool calls
       // Tool call interception requires full response parsing
