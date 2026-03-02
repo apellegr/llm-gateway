@@ -2891,10 +2891,45 @@ function responsesToChatCompletions(body, isHermes = false) {
       messages.push({ role: 'user', content: parsed.input });
     } else if (Array.isArray(parsed.input)) {
       // input can be an array of message objects or content items
+      // Accumulate consecutive function_call items into a single assistant message
+      let pendingToolCalls = [];
+
+      const flushPendingToolCalls = () => {
+        if (pendingToolCalls.length > 0) {
+          messages.push({
+            role: 'assistant',
+            content: null,
+            tool_calls: pendingToolCalls.map(tc => ({
+              id: tc.call_id || tc.id || ('call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+              type: 'function',
+              function: {
+                name: tc.name,
+                arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments || {})
+              }
+            }))
+          });
+          pendingToolCalls = [];
+        }
+      };
+
       for (const item of parsed.input) {
         if (typeof item === 'string') {
+          flushPendingToolCalls();
           messages.push({ role: 'user', content: item });
+        } else if (item.type === 'function_call') {
+          // Responses API function_call → accumulate into assistant tool_calls message
+          pendingToolCalls.push(item);
+        } else if (item.type === 'function_call_output') {
+          // Responses API function_call_output → Chat Completions tool message
+          // Flush any pending tool calls first (the output follows the call)
+          flushPendingToolCalls();
+          messages.push({
+            role: 'tool',
+            tool_call_id: item.call_id || item.id,
+            content: typeof item.output === 'string' ? item.output : JSON.stringify(item.output || '')
+          });
         } else if (item.role && item.content) {
+          flushPendingToolCalls();
           // Handle 'developer' role -> 'system' for local LLMs
           let role = item.role === 'developer' ? 'system' : item.role;
           let content = typeof item.content === 'string' ? item.content :
@@ -2908,12 +2943,15 @@ function responsesToChatCompletions(body, isHermes = false) {
 
           messages.push({ role, content });
         } else if (item.type === 'message' && item.content) {
+          flushPendingToolCalls();
           const content = Array.isArray(item.content)
             ? item.content.map(c => c.text || c.content || '').join('')
             : item.content;
           messages.push({ role: item.role || 'user', content });
         }
       }
+      // Flush any remaining pending tool calls
+      flushPendingToolCalls();
     }
   }
 
@@ -3789,11 +3827,33 @@ async function handleProxyRequest(req, res, body) {
         log('debug', 'Disabled streaming for Responses API tool call handling', { requestId });
       }
 
+      // Detect tool call loops: count previous client tool call rounds in the conversation.
+      // If the model has already made too many tool calls that aren't gateway tools,
+      // strip tools to force a text response and prevent infinite loops.
+      const MAX_CLIENT_TOOL_ROUNDS = 5;
+      const clientToolRounds = (chatCompBody.messages || []).filter(m =>
+        m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0 &&
+        m.tool_calls.every(tc => !GATEWAY_TOOLS.has(tc.function?.name))
+      ).length;
+
+      if (clientToolRounds >= MAX_CLIENT_TOOL_ROUNDS) {
+        log('warn', `Detected ${clientToolRounds} client tool call rounds (limit: ${MAX_CLIENT_TOOL_ROUNDS}), stripping tools to break loop`, { requestId });
+        delete chatCompBody.tools;
+        delete chatCompBody.tool_choice;
+        // Add instruction to synthesize from available data
+        chatCompBody.messages.push({
+          role: 'system',
+          content: 'You have already made several tool calls. Based on all the information gathered so far, provide a helpful, direct answer to the user now. Do not request more data or make additional tool calls.'
+        });
+        requestLog.toolLoopDetected = true;
+        requestLog.toolLoopRounds = clientToolRounds;
+      }
+
       requestBody = JSON.stringify(chatCompBody);
       targetPath = '/v1/chat/completions';  // Redirect to chat completions endpoint
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
-      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}: tools=${chatCompBody.tools?.length || 0}, stream=${chatCompBody.stream}`, { requestId });
+      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}: tools=${chatCompBody.tools?.length || 0}, stream=${chatCompBody.stream}, clientToolRounds=${clientToolRounds}`, { requestId });
     } else if (isResponsesAPI && backend === 'anthropic') {
       // OpenAI Responses API -> Anthropic conversion
       // First convert to Chat Completions, then to Anthropic
@@ -3982,7 +4042,9 @@ async function handleProxyRequest(req, res, body) {
             {
               role: 'assistant',
               content: contentBeforeToolCall || null,
-              tool_calls: toolCalls
+              // Only include gateway tool calls in follow-up (we have results for these)
+              // Client tool calls without matching results would confuse the model
+              tool_calls: gatewayToolCalls
             },
             ...toolResults
           ];
