@@ -2919,6 +2919,21 @@ function convertStreamChunk(chunk, state) {
           state.textContent = stripThinkingContent(state.textContent);
         }
 
+        // Fallback: if no content was streamed but reasoning_content was buffered,
+        // use reasoning as the response (channel models like GPT-OSS may put
+        // the entire answer in reasoning_content when they don't reach the final channel)
+        if (!state.textContent && state.reasoningBuffer) {
+          log('info', `No content produced, using reasoning_content as fallback (${state.reasoningBuffer.length} chars)`);
+          state.textContent = state.reasoningBuffer;
+          // Emit the buffered content as a text delta so the client receives it
+          events.push({
+            type: 'response.output_text.delta',
+            output_index: 0,
+            content_index: 0,
+            delta: state.textContent
+          });
+        }
+
         // Append model name footer for debugging
         const modelShortName = (state.model || 'unknown').replace(/\.gguf$/, '').replace(/-Q\d.*$/, '');
         const modelFooter = `\n\n_[via ${modelShortName}]_`;
@@ -2975,15 +2990,19 @@ function convertStreamChunk(chunk, state) {
 
       try {
         const parsed = JSON.parse(data);
-        // Only stream content deltas — skip reasoning_content (thinking tokens)
-        // Thinking models (Qwen3, DeepSeek-R1, etc.) emit reasoning_content
-        // separately; we discard it to avoid leaking internal monologue to users
+        // Handle reasoning_content vs content for thinking/channel models:
+        // - Thinking models (Qwen3, DeepSeek-R1): reasoning_content = internal CoT, content = answer
+        // - Channel models (GPT-OSS): reasoning_content = analysis channel, content = final channel
+        // Strategy: stream content immediately; buffer reasoning_content as fallback
+        // At stream end, if no content was produced, flush buffered reasoning as the response
         const deltaObj = parsed.choices?.[0]?.delta || {};
         const delta = deltaObj.content || '';
+        const reasoningDelta = deltaObj.reasoning_content || '';
 
-        // Debug: log what we're receiving
-        if (delta || deltaObj.reasoning_content) {
-          log('debug', 'Stream chunk delta', { content: (delta || '').substring(0, 50), hasContent: !!deltaObj.content, hasReasoning: !!deltaObj.reasoning_content, reasoningSkipped: !!deltaObj.reasoning_content && !deltaObj.content });
+        // Buffer reasoning_content for fallback
+        if (reasoningDelta && !delta) {
+          if (!state.reasoningBuffer) state.reasoningBuffer = '';
+          state.reasoningBuffer += reasoningDelta;
         }
 
         // Initialize on first chunk
