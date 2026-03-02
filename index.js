@@ -4093,7 +4093,9 @@ async function handleProxyRequest(req, res, body) {
                 // use the raw content (bypassing reasoning detection).
                 try {
                   const rawFollowUp = JSON.parse(followUpResponse.body);
-                  const rawContent = rawFollowUp.choices?.[0]?.message?.content || '';
+                  const msg = rawFollowUp.choices?.[0]?.message || {};
+                  // GPT-OSS often puts actual answers in reasoning_content, not content
+                  const rawContent = msg.content || msg.reasoning_content || '';
                   if (rawContent.trim()) {
                     log('info', `Follow-up content was stripped as reasoning, using raw content (${rawContent.length} chars)`, { requestId });
                     converted.output = [{
