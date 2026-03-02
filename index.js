@@ -3211,6 +3211,10 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
     const stripped = stripThinkingContent(content);
     if (stripped && stripped !== content) {
       content = stripped;
+    } else {
+      // stripThinkingContent couldn't find real content — entire response is reasoning.
+      // Set content to empty to avoid leaking internal planning to user.
+      content = '';
     }
   }
 
@@ -3799,7 +3803,7 @@ async function handleProxyRequest(req, res, body) {
       targetPath = '/v1/chat/completions';  // Redirect to chat completions endpoint
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
-      log('info', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}: tools=${chatCompBody.tools?.length || 0}, stream=${chatCompBody.stream}`, { requestId });
+      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}: tools=${chatCompBody.tools?.length || 0}, stream=${chatCompBody.stream}`, { requestId });
     } else if (isResponsesAPI && backend === 'anthropic') {
       // OpenAI Responses API -> Anthropic conversion
       // First convert to Chat Completions, then to Anthropic
@@ -3855,13 +3859,6 @@ async function handleProxyRequest(req, res, body) {
     }
 
     // Make the request
-    if (needsResponseConversion) {
-      try {
-        const reqParsed = JSON.parse(requestBody);
-        log('info', `Sending to backend: tools=${JSON.stringify(reqParsed.tools?.map(t => t.function?.name || t.name))}, stream=${reqParsed.stream}, messages=${reqParsed.messages?.length}`, { requestId });
-        log('info', `Request body (first 1000 chars): ${requestBody.substring(0, 1000)}`, { requestId });
-      } catch (e) {}
-    }
     const backendStart = Date.now();
     const proxyResponse = await makeRequest(targetUrl, {
       method: req.method,
@@ -4002,6 +3999,11 @@ async function handleProxyRequest(req, res, body) {
 
           // Remove tools from follow-up to prevent model from making more tool calls
           const { tools: _, tool_choice: __, ...restOfChatComp } = chatCompParsed;
+          // Add instruction to synthesize from results (prevents model from outputting reasoning)
+          followUpMessages.push({
+            role: 'system',
+            content: 'Use the tool results above to provide a helpful, direct answer to the user. Do not explain your reasoning or mention needing more data — answer based on what you have.'
+          });
           const followUpBody = {
             ...restOfChatComp,
             messages: followUpMessages
