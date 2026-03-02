@@ -3854,6 +3854,7 @@ async function handleProxyRequest(req, res, body) {
       try {
         const reqParsed = JSON.parse(requestBody);
         log('info', `Sending to backend: tools=${JSON.stringify(reqParsed.tools?.map(t => t.function?.name || t.name))}, stream=${reqParsed.stream}, messages=${reqParsed.messages?.length}`, { requestId });
+        log('info', `Request body (first 1000 chars): ${requestBody.substring(0, 1000)}`, { requestId });
       } catch (e) {}
     }
     const backendStart = Date.now();
