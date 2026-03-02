@@ -3794,7 +3794,7 @@ async function handleProxyRequest(req, res, body) {
       targetPath = '/v1/chat/completions';  // Redirect to chat completions endpoint
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
-      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}`, { requestId });
+      log('info', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}: tools=${chatCompBody.tools?.length || 0}, stream=${chatCompBody.stream}`, { requestId });
     } else if (isResponsesAPI && backend === 'anthropic') {
       // OpenAI Responses API -> Anthropic conversion
       // First convert to Chat Completions, then to Anthropic
@@ -3850,6 +3850,12 @@ async function handleProxyRequest(req, res, body) {
     }
 
     // Make the request
+    if (needsResponseConversion) {
+      try {
+        const reqParsed = JSON.parse(requestBody);
+        log('info', `Sending to backend: tools=${JSON.stringify(reqParsed.tools?.map(t => t.function?.name || t.name))}, stream=${reqParsed.stream}, messages=${reqParsed.messages?.length}`, { requestId });
+      } catch (e) {}
+    }
     const backendStart = Date.now();
     const proxyResponse = await makeRequest(targetUrl, {
       method: req.method,
