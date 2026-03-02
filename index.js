@@ -4083,22 +4083,41 @@ async function handleProxyRequest(req, res, body) {
               const isHermesResponse = requestLog.isHermes || requestLog.formatConversion?.includes('hermes');
               const converted = chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResponse);
 
-              // Check if reasoning was stripped and content is empty — use tool results directly
+              // Check if reasoning was stripped and content is empty
               const hasContent = converted.output?.some(item =>
                 item.type === 'message' && item.content?.some(c => c.text && c.text.trim())
               );
-              if (!hasContent && toolResults.length > 0) {
-                log('info', `Follow-up was empty (reasoning stripped), using tool results directly`, { requestId });
-                // Tool results are already formatted text from executeToolCall/formatSearchResults
-                const resultText = toolResults.map(tr => tr.content).join('\n\n');
-                if (resultText) {
-                  converted.output = [{
-                    type: 'message',
-                    id: 'msg_' + Date.now(),
-                    status: 'completed',
-                    role: 'assistant',
-                    content: [{ type: 'output_text', text: resultText }]
-                  }];
+              if (!hasContent) {
+                // Reasoning stripping blanked the follow-up. For tool follow-ups,
+                // the model was explicitly instructed to give a direct answer, so
+                // use the raw content (bypassing reasoning detection).
+                try {
+                  const rawFollowUp = JSON.parse(followUpResponse.body);
+                  const rawContent = rawFollowUp.choices?.[0]?.message?.content || '';
+                  if (rawContent.trim()) {
+                    log('info', `Follow-up content was stripped as reasoning, using raw content (${rawContent.length} chars)`, { requestId });
+                    converted.output = [{
+                      type: 'message',
+                      id: 'msg_' + Date.now(),
+                      status: 'completed',
+                      role: 'assistant',
+                      content: [{ type: 'output_text', text: rawContent }]
+                    }];
+                  } else if (toolResults.length > 0) {
+                    log('info', `Follow-up truly empty, using tool results directly`, { requestId });
+                    const resultText = toolResults.map(tr => tr.content).join('\n\n');
+                    if (resultText) {
+                      converted.output = [{
+                        type: 'message',
+                        id: 'msg_' + Date.now(),
+                        status: 'completed',
+                        role: 'assistant',
+                        content: [{ type: 'output_text', text: resultText }]
+                      }];
+                    }
+                  }
+                } catch (e) {
+                  log('warn', `Failed to parse raw follow-up: ${e.message}`, { requestId });
                 }
               }
 
