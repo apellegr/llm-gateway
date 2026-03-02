@@ -3225,19 +3225,9 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
   if (message.tool_calls && message.tool_calls.length > 0) {
     foundToolCalls = true;
 
-    // Add text content if any (model may include text alongside tool calls)
-    if (content) {
-      output.push({
-        type: 'message',
-        id: 'msg_' + Date.now(),
-        status: 'completed',
-        role: 'assistant',
-        content: [{
-          type: 'output_text',
-          text: content
-        }]
-      });
-    }
+    // GPT-OSS puts reasoning/planning text in content alongside tool_calls.
+    // Don't include it — it's internal thinking, not user-facing content.
+    // (OpenAI models typically send null/empty content with tool_calls)
 
     // Convert OpenAI tool_calls to Responses API function_call output items
     for (const tc of message.tool_calls) {
