@@ -777,7 +777,7 @@ function stripThinkingContent(content) {
 function looksLikeReasoning(content) {
   if (!content || content.length < 20) return false;
   const first200 = content.substring(0, 200);
-  return /^(We need to|We have|Let me |I need to |I should |Let's |The user |This is a question|Looking at|Considering|First,? (?:let me|I'll|we))/i.test(first200);
+  return /^(We need |We have |Let me |I need to |I should |Let's |The user |This is a |Looking at |Considering |First,? (?:let me|I'll|we)|Likely need |Now |OK,? |Alright |So,? )/i.test(first200);
 }
 
 // Execute multi-model query and combine results
@@ -1862,6 +1862,12 @@ async function performWebSearch(query) {
         if (endPattern) location = endPattern[1];
       }
 
+      // Pattern 2b: "weather <location>" or "current weather <location>" - no preposition
+      if (!location) {
+        const directPattern = queryLower.match(/(?:current\s+)?(?:weather|temperature|forecast)\s+([A-Za-z][A-Za-z\s,]+?)(?:\s+today|\s+tomorrow|\s+tonight|\s+this|\s+now|\?|$)/i);
+        if (directPattern) location = directPattern[1];
+      }
+
       // Pattern 3: "what is the weather in <location>"
       if (!location) {
         const whatPattern = queryLower.match(/what(?:'s| is| the)?\s+(?:the\s+)?(?:current\s+)?(?:weather|temperature|forecast)\s+(?:in|for|at)\s+(.+?)(?:\?|$)/i);
@@ -1903,7 +1909,7 @@ async function performWebSearch(query) {
       const weatherResponse = await makeRequest(weatherUrl, {
         method: 'GET',
         headers: { 'User-Agent': 'curl/7.68.0' }
-      });
+      }, null, false, 15000);
 
       if (weatherResponse.status === 200) {
         try {
@@ -2192,7 +2198,7 @@ Natural gas prices vary by region and are quoted in $/MMBtu in the US.`,
             'X-Subscription-Token': BRAVE_SEARCH_API_KEY,
             'Accept': 'application/json'
           }
-        });
+        }, null, false, 15000);
 
         if (searchResponse.status === 200) {
           const data = JSON.parse(searchResponse.body);
@@ -2667,7 +2673,7 @@ async function executeToolCall(toolCall) {
         const weatherResponse = await makeRequest(weatherUrl, {
           method: 'GET',
           headers: { 'User-Agent': 'curl/7.68.0' }
-        });
+        }, null, false, 15000);
 
         if (weatherResponse.status !== 200) {
           return `Could not get weather for "${location}". Please try a different location.`;
@@ -3324,7 +3330,7 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
 }
 
 // Make HTTP request
-function makeRequest(url, options, body, isStreaming = false) {
+function makeRequest(url, options, body, isStreaming = false, timeoutMs = 300000) {
   return new Promise((resolve, reject) => {
     const isHttps = url.startsWith('https');
     const lib = isHttps ? https : http;
@@ -3352,7 +3358,7 @@ function makeRequest(url, options, body, isStreaming = false) {
     });
 
     req.on('error', reject);
-    req.setTimeout(300000, () => {
+    req.setTimeout(timeoutMs, () => {
       req.destroy();
       reject(new Error('Request timeout'));
     });
