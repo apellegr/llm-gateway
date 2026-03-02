@@ -3846,14 +3846,29 @@ async function handleProxyRequest(req, res, body) {
       ).length;
 
       if (clientToolRounds >= MAX_CLIENT_TOOL_ROUNDS) {
-        log('warn', `Detected ${clientToolRounds} client tool call rounds (limit: ${MAX_CLIENT_TOOL_ROUNDS}), stripping tools to break loop`, { requestId });
+        log('warn', `Detected ${clientToolRounds} client tool call rounds (limit: ${MAX_CLIENT_TOOL_ROUNDS}), stripping tools and truncating history`, { requestId });
         delete chatCompBody.tools;
         delete chatCompBody.tool_choice;
-        // Add instruction to synthesize from available data
-        chatCompBody.messages.push({
-          role: 'system',
-          content: 'You have already made several tool calls. Based on all the information gathered so far, provide a helpful, direct answer to the user now. Do not request more data or make additional tool calls.'
-        });
+
+        // Truncate bloated conversation history to prevent timeout.
+        // Keep: system messages, first user message, last few messages.
+        const msgs = chatCompBody.messages || [];
+        const systemMsgs = msgs.filter(m => m.role === 'system');
+        const firstUserMsg = msgs.find(m => m.role === 'user');
+        const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
+        const truncated = [
+          ...systemMsgs,
+          ...(firstUserMsg ? [firstUserMsg] : []),
+          // Include last user message if different from first
+          ...(lastUserMsg && lastUserMsg !== firstUserMsg ? [lastUserMsg] : []),
+          {
+            role: 'system',
+            content: 'Previous tool calls have been removed to save context. Based on the user\'s question, provide a helpful, direct answer. Do not request more data or make additional tool calls.'
+          }
+        ];
+        chatCompBody.messages = truncated;
+        log('info', `Truncated messages from ${msgs.length} to ${truncated.length}`, { requestId });
+
         requestLog.toolLoopDetected = true;
         requestLog.toolLoopRounds = clientToolRounds;
       }
