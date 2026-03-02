@@ -3681,11 +3681,17 @@ async function handleProxyRequest(req, res, body) {
     // Convert formats if needed
     if (isResponsesAPI && isLocalBackend) {
       // OpenAI Responses API -> Chat Completions conversion
+      // Force non-streaming so we can handle tool calls and reasoning_content properly
+      // We'll convert the response back to SSE events for the client
+      const originalWantedStreaming = parsedBody.stream !== false;
+      requestLog.originalWantedStreaming = originalWantedStreaming;
+      parsedBody.stream = false;
+      body = JSON.stringify(parsedBody);
       requestBody = JSON.stringify(responsesToChatCompletions(body, isHermes));
       targetPath = '/v1/chat/completions';  // Redirect to chat completions endpoint
       requestLog.formatConversion = isHermes ? 'responses-to-chat-completions-hermes' : 'responses-to-chat-completions';
       needsResponseConversion = true;
-      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''}`, { requestId });
+      log('debug', `Converting Responses API to Chat Completions${isHermes ? ' (Hermes mode)' : ''} (streaming disabled for tool handling)`, { requestId });
     } else if (isResponsesAPI && backend === 'anthropic') {
       // OpenAI Responses API -> Anthropic conversion
       // First convert to Chat Completions, then to Anthropic
@@ -3766,6 +3772,7 @@ async function handleProxyRequest(req, res, body) {
 
     // Process non-streaming response
     let responseBody = proxyResponse.body;
+    const rawResponseBody = proxyResponse.body;  // Keep raw Chat Completions for tool call detection
 
     // Convert response format if needed
     if ((requestLog.formatConversion === 'responses-to-chat-completions' ||
@@ -3807,17 +3814,22 @@ async function handleProxyRequest(req, res, body) {
       }
     }
 
-    // Handle tool calls if we injected tools and got a successful response
-    if (injectedTools && proxyResponse.status === 200 && !isStreaming) {
+    // Handle tool calls for local backend non-streaming responses
+    // Uses raw Chat Completions response (before format conversion) for detection
+    if (isLocalBackend && proxyResponse.status === 200 && !isStreaming) {
       try {
-        const responseParsed = JSON.parse(responseBody);
+        const rawParsed = JSON.parse(rawResponseBody);
         let toolCalls = [];
         let contentBeforeToolCall = '';
 
-        // Check for OpenAI-style tool calls
-        const choice = responseParsed.choices?.[0];
+        // Check for OpenAI-style tool calls in raw response
+        const choice = rawParsed.choices?.[0];
         if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
-          toolCalls = choice.message.tool_calls;
+          // Only execute tool calls the gateway knows how to handle
+          const gatewayToolNames = LOCAL_MODEL_TOOLS.map(t => t.function.name);
+          toolCalls = choice.message.tool_calls.filter(tc =>
+            gatewayToolNames.includes(tc.function?.name)
+          );
           contentBeforeToolCall = choice.message.content || '';
         }
         // Check for Hermes-style tool calls in content
@@ -3844,23 +3856,25 @@ async function handleProxyRequest(req, res, body) {
             });
           }
 
-          // Build follow-up request with tool results
+          // Build follow-up request with tool results using Chat Completions format
+          // (parsedBody.messages may be in Responses API format, so use the converted request)
+          const convertedRequest = JSON.parse(requestBody);
           const followUpMessages = [
-            ...(parsedBody.messages || []),
+            ...(convertedRequest.messages || []),
             {
               role: 'assistant',
               content: contentBeforeToolCall || null,
-              tool_calls: toolCalls
+              tool_calls: choice.message.tool_calls  // Include ALL tool calls (even non-gateway ones)
             },
             ...toolResults
           ];
 
-          // Remove tools from follow-up to prevent model from making more tool calls
-          // The model should use the tool results to generate a final response
-          const { tools: _, tool_choice: __, ...restOfParsedBody } = parsedBody;
+          // Remove tools from follow-up to prevent infinite tool call loops
+          const { tools: _, tool_choice: __, ...restOfConvertedRequest } = convertedRequest;
           const followUpBody = {
-            ...restOfParsedBody,
-            messages: followUpMessages
+            ...restOfConvertedRequest,
+            messages: followUpMessages,
+            stream: false
           };
 
           log('info', `Making follow-up request with tool results`, { requestId });
@@ -3872,7 +3886,19 @@ async function handleProxyRequest(req, res, body) {
           }, JSON.stringify(followUpBody), false);
 
           if (followUpResponse.status === 200) {
-            responseBody = followUpResponse.body;
+            // Re-convert the follow-up response to Responses API format if needed
+            if (needsResponseConversion) {
+              try {
+                const respParsed = JSON.parse(followUpResponse.body);
+                const respModel = (respParsed.model || '').toLowerCase();
+                const isHermesResp = requestLog.isHermes || respModel.includes('hermes');
+                responseBody = JSON.stringify(chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResp));
+              } catch (e) {
+                responseBody = followUpResponse.body;
+              }
+            } else {
+              responseBody = followUpResponse.body;
+            }
             requestLog.toolCallFollowUp = true;
             log('info', `Tool call follow-up completed`, { requestId });
           } else {
@@ -3968,7 +3994,7 @@ async function handleProxyRequest(req, res, body) {
     // Send response to client
     // If client originally wanted streaming but we converted to non-streaming internally,
     // emit the response as streaming events
-    if (requestLog.originalWantedStreaming && requestLog.formatConversion === 'responses-to-anthropic') {
+    if (requestLog.originalWantedStreaming && (requestLog.formatConversion === 'responses-to-anthropic' || (requestLog.formatConversion && requestLog.formatConversion.startsWith('responses-to-chat')))) {
       try {
         const responsesObj = JSON.parse(responseBody);
         const textContent = responsesObj.output?.[0]?.content?.[0]?.text || '';
