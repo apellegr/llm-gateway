@@ -4020,7 +4020,43 @@ async function handleProxyRequest(req, res, body) {
             // If Responses API conversion is needed, convert the follow-up response
             if (needsResponseConversion) {
               const isHermesResponse = requestLog.isHermes || requestLog.formatConversion?.includes('hermes');
-              responseBody = JSON.stringify(chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResponse));
+              const converted = chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResponse);
+
+              // Check if reasoning was stripped and content is empty — use tool results directly
+              const hasContent = converted.output?.some(item =>
+                item.type === 'message' && item.content?.some(c => c.text && c.text.trim())
+              );
+              if (!hasContent && toolResults.length > 0) {
+                log('info', `Follow-up was empty (reasoning stripped), using tool results directly`, { requestId });
+                // Format tool results as the response
+                let resultText = '';
+                for (const tr of toolResults) {
+                  try {
+                    const parsed = JSON.parse(tr.content);
+                    if (parsed.type === 'weather' && parsed.weather) {
+                      const w = parsed.weather;
+                      resultText = `Current weather in ${w.location}${w.region ? ', ' + w.region : ''}: ${w.description}, ${w.temperature_f}°F (${w.temperature_c}°C). Feels like ${w.feels_like_f}°F. Humidity: ${w.humidity}%. Wind: ${w.wind_mph} mph ${w.wind_dir}. UV Index: ${w.uv_index}.`;
+                    } else if (parsed.type === 'web' && parsed.results?.length > 0) {
+                      resultText = `Here's what I found:\n\n${parsed.results.map((r, i) => `${i + 1}. **${r.title}**\n${r.description}\n${r.url}`).join('\n\n')}`;
+                    } else {
+                      resultText = tr.content;
+                    }
+                  } catch (e) {
+                    resultText = tr.content;
+                  }
+                }
+                if (resultText) {
+                  converted.output = [{
+                    type: 'message',
+                    id: 'msg_' + Date.now(),
+                    status: 'completed',
+                    role: 'assistant',
+                    content: [{ type: 'output_text', text: resultText }]
+                  }];
+                }
+              }
+
+              responseBody = JSON.stringify(converted);
             } else {
               responseBody = followUpResponse.body;
             }
