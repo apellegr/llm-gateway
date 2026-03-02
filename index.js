@@ -772,6 +772,14 @@ function stripThinkingContent(content) {
   return filteredLines.join('\n').trim() || content;
 }
 
+// Detect if content looks like internal reasoning/planning rather than a user-facing response
+// GPT-OSS often puts its chain-of-thought directly in the content field
+function looksLikeReasoning(content) {
+  if (!content || content.length < 20) return false;
+  const first200 = content.substring(0, 200);
+  return /^(We need to|We have|Let me |I need to |I should |Let's |The user |This is a question|Looking at|Considering|First,? (?:let me|I'll|we))/i.test(first200);
+}
+
 // Execute multi-model query and combine results
 async function executeMultiModelQuery(request, backends, requestLog) {
   log('info', `Executing multi-model query across: ${backends.join(', ')}`);
@@ -2390,6 +2398,13 @@ function detectNeedsWebSearch(responseContent) {
   return null;
 }
 
+// Gateway-known tools that executeToolCall can handle
+const GATEWAY_TOOLS = new Set([
+  'web_search', 'get_current_time', 'calculator', 'send_notification',
+  'set_reminder', 'set_timer', 'manage_todos', 'weather_forecast',
+  'convert_units', 'dictionary'
+]);
+
 // Execute a tool call and return results
 async function executeToolCall(toolCall) {
   const name = toolCall.function?.name || toolCall.name;
@@ -3184,6 +3199,15 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
     content = stripThinkingContent(message.reasoning_content);
   }
 
+  // GPT-OSS and similar models sometimes put reasoning/planning text directly in content
+  // (e.g. "We need to answer...", "Let me check..."). Strip it if detected.
+  if (content && looksLikeReasoning(content)) {
+    const stripped = stripThinkingContent(content);
+    if (stripped && stripped !== content) {
+      content = stripped;
+    }
+  }
+
   const output = [];
 
   // For Hermes models, parse tool calls from the content
@@ -3887,11 +3911,29 @@ async function handleProxyRequest(req, res, body) {
 
         // Execute tool calls and continue conversation
         if (toolCalls.length > 0) {
-          log('info', `Detected ${toolCalls.length} tool call(s), executing...`, { requestId });
-          requestLog.toolCallsDetected = toolCalls.map(tc => tc.function?.name);
+          // Filter to only gateway-known tools — skip client tools (e.g. clawdbot's read/write/exec)
+          const gatewayToolCalls = toolCalls.filter(tc => {
+            const tcName = tc.function?.name || tc.name;
+            return GATEWAY_TOOLS.has(tcName);
+          });
+          const skippedTools = toolCalls.filter(tc => !GATEWAY_TOOLS.has(tc.function?.name || tc.name));
+
+          if (skippedTools.length > 0) {
+            log('info', `Skipping ${skippedTools.length} client tool call(s): ${skippedTools.map(tc => tc.function?.name).join(', ')}`, { requestId });
+          }
+
+          // If no gateway-executable tool calls, skip follow-up entirely
+          // (let the response pass through so the client can handle its own tools)
+          if (gatewayToolCalls.length === 0) {
+            log('info', `No gateway-executable tool calls, passing response through`, { requestId });
+            requestLog.toolCallsDetected = toolCalls.map(tc => tc.function?.name);
+            requestLog.toolCallsSkipped = true;
+          } else {
+          log('info', `Detected ${gatewayToolCalls.length} gateway tool call(s), executing...`, { requestId });
+          requestLog.toolCallsDetected = gatewayToolCalls.map(tc => tc.function?.name);
 
           const toolResults = [];
-          for (const tc of toolCalls) {
+          for (const tc of gatewayToolCalls) {
             const result = await executeToolCall(tc);
             toolResults.push({
               tool_call_id: tc.id,
@@ -3939,6 +3981,7 @@ async function handleProxyRequest(req, res, body) {
           } else {
             log('warn', `Tool call follow-up failed: ${followUpResponse.status}`, { requestId });
           }
+          } // end else (gatewayToolCalls.length > 0)
         }
       } catch (e) {
         log('warn', `Tool call handling error: ${e.message}`, { requestId });
