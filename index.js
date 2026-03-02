@@ -1463,6 +1463,7 @@ const DICTIONARY_TOOL = {
 };
 
 // All tools available for local models
+// All tools available for local models (when no client tools present)
 const LOCAL_MODEL_TOOLS = [
   WEB_SEARCH_TOOL,
   GET_CURRENT_TIME_TOOL,
@@ -1474,6 +1475,14 @@ const LOCAL_MODEL_TOOLS = [
   WEATHER_FORECAST_TOOL,
   UNIT_CONVERTER_TOOL,
   DICTIONARY_TOOL
+];
+
+// Essential tools to inject when client already has its own tools.
+// Keeps prompt small — each tool def adds ~150 tokens to the prompt.
+const ESSENTIAL_GATEWAY_TOOLS = [
+  WEB_SEARCH_TOOL,
+  WEATHER_FORECAST_TOOL,
+  GET_CURRENT_TIME_TOOL
 ];
 
 // ============================================================================
@@ -1910,7 +1919,7 @@ async function performWebSearch(query) {
         const weatherResponse = await makeRequest(weatherUrl, {
           method: 'GET',
           headers: { 'User-Agent': 'curl/7.68.0' }
-        }, null, false, 15000);
+        }, null, false, 8000);
 
         if (weatherResponse.status === 200) {
           const weatherData = JSON.parse(weatherResponse.body);
@@ -2198,7 +2207,7 @@ Natural gas prices vary by region and are quoted in $/MMBtu in the US.`,
             'X-Subscription-Token': BRAVE_SEARCH_API_KEY,
             'Accept': 'application/json'
           }
-        }, null, false, 15000);
+        }, null, false, 8000);
 
         if (searchResponse.status === 200) {
           const data = JSON.parse(searchResponse.body);
@@ -2673,7 +2682,7 @@ async function executeToolCall(toolCall) {
         const weatherResponse = await makeRequest(weatherUrl, {
           method: 'GET',
           headers: { 'User-Agent': 'curl/7.68.0' }
-        }, null, false, 15000);
+        }, null, false, 8000);
 
         if (weatherResponse.status !== 200) {
           return `Could not get weather for "${location}". Please try a different location.`;
@@ -3792,8 +3801,10 @@ async function handleProxyRequest(req, res, body) {
       const existingToolNames = new Set((parsedBody.tools || []).map(t =>
         t.function?.name || t.name
       ));
-      // Add gateway tools that aren't already in the request
-      const newTools = LOCAL_MODEL_TOOLS.filter(t =>
+      // When client already provides tools, only inject essential ones to keep
+      // the prompt small (~150 tokens/tool × N tools adds up at 153 tok/s PP)
+      const toolSource = requestHasTools ? ESSENTIAL_GATEWAY_TOOLS : LOCAL_MODEL_TOOLS;
+      const newTools = toolSource.filter(t =>
         !existingToolNames.has(t.function.name)
       );
       if (newTools.length > 0) {
@@ -4065,8 +4076,25 @@ async function handleProxyRequest(req, res, body) {
           // as a user message makes the model synthesize a direct answer.
           const chatCompParsed = JSON.parse(requestBody);
           const resultSummary = toolResults.map(tr => tr.content).join('\n\n');
+
+          // Build a MINIMAL follow-up context. The full conversation (system prompt +
+          // 23 tool defs + history) is huge (~10k+ tokens). For synthesis we only need:
+          // - A short system prompt (persona)
+          // - The user's original question
+          // - The data to synthesize from
+          const allMessages = chatCompParsed.messages || [];
+          const lastUserMsg = [...allMessages].reverse().find(m => m.role === 'user');
+          const userQuestion = lastUserMsg?.content || 'the user\'s question';
+
           const followUpMessages = [
-            ...(chatCompParsed.messages || []),
+            {
+              role: 'system',
+              content: 'You are a helpful assistant. Answer the user\'s question based on the provided information. Be well-organized, use markdown formatting when helpful, and be direct.'
+            },
+            {
+              role: 'user',
+              content: userQuestion
+            },
             {
               role: 'assistant',
               content: 'I found some information. Let me summarize it for you.'
@@ -4078,7 +4106,7 @@ async function handleProxyRequest(req, res, body) {
           ];
 
           // Remove tools from follow-up to prevent model from making more tool calls
-          const { tools: _, tool_choice: __, ...restOfChatComp } = chatCompParsed;
+          const { tools: _, tool_choice: __, messages: ___, ...restOfChatComp } = chatCompParsed;
           const followUpBody = {
             ...restOfChatComp,
             messages: followUpMessages
