@@ -3341,7 +3341,12 @@ function makeRequest(url, options, body, isStreaming = false, timeoutMs = 300000
       port: urlObj.port || (isHttps ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: options.method || 'POST',
-      headers: options.headers || {}
+      headers: {
+        ...(options.headers || {}),
+        'Connection': 'close'
+      },
+      // Disable connection pooling to avoid keep-alive reuse issues
+      agent: false
     };
 
     const req = lib.request(reqOptions, (res) => {
