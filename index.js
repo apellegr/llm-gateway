@@ -4044,27 +4044,26 @@ async function handleProxyRequest(req, res, body) {
             });
           }
 
-          // Build follow-up in Chat Completions format (using the converted request body)
+          // Build follow-up as a simple conversation (no tool_calls/tool messages).
+          // GPT-OSS enters "planning mode" when it sees tool result format,
+          // producing only reasoning instead of actual content. Presenting results
+          // as a user message makes the model synthesize a direct answer.
           const chatCompParsed = JSON.parse(requestBody);
+          const resultSummary = toolResults.map(tr => tr.content).join('\n\n');
           const followUpMessages = [
             ...(chatCompParsed.messages || []),
             {
               role: 'assistant',
-              content: contentBeforeToolCall || null,
-              // Only include gateway tool calls in follow-up (we have results for these)
-              // Client tool calls without matching results would confuse the model
-              tool_calls: gatewayToolCalls
+              content: 'I found some information. Let me summarize it for you.'
             },
-            ...toolResults
+            {
+              role: 'user',
+              content: `Here is the information I found:\n\n${resultSummary}\n\nBased on this information, provide a helpful and well-organized answer. Do not mention needing more data or tools — answer based on what is provided above.`
+            }
           ];
 
           // Remove tools from follow-up to prevent model from making more tool calls
           const { tools: _, tool_choice: __, ...restOfChatComp } = chatCompParsed;
-          // Add instruction to synthesize from results (prevents model from outputting reasoning)
-          followUpMessages.push({
-            role: 'system',
-            content: 'Use the tool results above to provide a helpful, direct answer to the user. Do not explain your reasoning or mention needing more data — answer based on what you have.'
-          });
           const followUpBody = {
             ...restOfChatComp,
             messages: followUpMessages
