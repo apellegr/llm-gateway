@@ -2351,7 +2351,7 @@ Sources: ${c.sources}`;
   for (let i = 0; i < searchResponse.results.length; i++) {
     const r = searchResponse.results[i];
     formatted += `${i + 1}. ${r.title}\n`;
-    if (r.snippet) formatted += `   ${r.snippet}\n`;
+    if (r.description || r.snippet) formatted += `   ${r.description || r.snippet}\n`;
     formatted += `   URL: ${r.url}\n\n`;
   }
 
@@ -4018,23 +4018,8 @@ async function handleProxyRequest(req, res, body) {
               );
               if (!hasContent && toolResults.length > 0) {
                 log('info', `Follow-up was empty (reasoning stripped), using tool results directly`, { requestId });
-                // Format tool results as the response
-                let resultText = '';
-                for (const tr of toolResults) {
-                  try {
-                    const parsed = JSON.parse(tr.content);
-                    if (parsed.type === 'weather' && parsed.weather) {
-                      const w = parsed.weather;
-                      resultText = `Current weather in ${w.location}${w.region ? ', ' + w.region : ''}: ${w.description}, ${w.temperature_f}°F (${w.temperature_c}°C). Feels like ${w.feels_like_f}°F. Humidity: ${w.humidity}%. Wind: ${w.wind_mph} mph ${w.wind_dir}. UV Index: ${w.uv_index}.`;
-                    } else if (parsed.type === 'web' && parsed.results?.length > 0) {
-                      resultText = `Here's what I found:\n\n${parsed.results.map((r, i) => `${i + 1}. **${r.title}**\n${r.description}\n${r.url}`).join('\n\n')}`;
-                    } else {
-                      resultText = tr.content;
-                    }
-                  } catch (e) {
-                    resultText = tr.content;
-                  }
-                }
+                // Tool results are already formatted text from executeToolCall/formatSearchResults
+                const resultText = toolResults.map(tr => tr.content).join('\n\n');
                 if (resultText) {
                   converted.output = [{
                     type: 'message',
