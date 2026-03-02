@@ -531,6 +531,30 @@ function quickClassify(content) {
   return null; // Use LLM classification
 }
 
+// Determine if the latest user message requires client-provided tools (read/write/exec etc).
+// Simple queries (weather, chat, news) don't need them — stripping saves ~22s at 153 tok/s.
+function needsClientTools(messages) {
+  // Find the last user message to classify
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  if (!lastUserMsg) return true; // no user message → keep tools (safe default)
+
+  const content = typeof lastUserMsg.content === 'string'
+    ? lastUserMsg.content
+    : (Array.isArray(lastUserMsg.content) ? lastUserMsg.content.map(c => c.text || '').join(' ') : '');
+
+  if (!content.trim()) return true; // empty → keep tools
+
+  const classification = quickClassify(content);
+  if (!classification) return true; // can't classify → keep tools (safe)
+
+  // Simple conversations and realtime queries don't need client tools
+  if (classification.category === 'conversation') return false;
+  if (classification.category === 'realtime') return false;
+
+  // Everything else (code, research, unclassified) → keep client tools
+  return true;
+}
+
 // Apply user preferences to classification
 function applyUserPreferences(classification, prefs) {
   // If user prefers certain models for certain categories
@@ -3646,7 +3670,7 @@ async function handleProxyRequest(req, res, body) {
 
     // Check if request already has tools defined (e.g., from Clawdbot)
     // If so, skip realtime detection to avoid routing issues with large requests
-    const requestAlreadyHasTools = parsedRequestBody.tools && parsedRequestBody.tools.length > 0;
+    let requestAlreadyHasTools = parsedRequestBody.tools && parsedRequestBody.tools.length > 0;
 
     if (config.smartRouter?.enabled && messages.length > 0) {
       // Use smart router (but skip realtime detection if tools already present)
@@ -3658,6 +3682,18 @@ async function handleProxyRequest(req, res, body) {
 
         routingDecision = getRoutingRecommendation(classification, contextLength, userId);
         backend = routingDecision.backend;
+
+        // For simple queries (conversation, realtime), strip client tools to reduce
+        // prompt size (~22s savings at 153 tok/s). The model can still see results
+        // from previous client tool calls in conversation history.
+        if (requestAlreadyHasTools && !needsClientTools(messages)) {
+          const strippedCount = parsedRequestBody.tools.length;
+          parsedRequestBody.tools = [];
+          body = JSON.stringify(parsedRequestBody);
+          requestAlreadyHasTools = false;
+          log('info', `Stripped ${strippedCount} client tools (simple query detected)`, { requestId });
+          requestLog.clientToolsStripped = strippedCount;
+        }
 
         // Route requests with tools to Anthropic (local backends reject clawdbot's tool format)
         // Clawdbot's tools use complex schemas that llama.cpp doesn't support
