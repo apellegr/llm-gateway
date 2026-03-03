@@ -3961,7 +3961,8 @@ async function handleProxyRequest(req, res, body) {
       requestLog.formatConversion = 'responses-to-anthropic';
       requestLog.originalWantedStreaming = originalWantedStreaming;
       needsResponseConversion = true;
-      log('debug', `Converting Responses API to Anthropic format (streaming: ${originalWantedStreaming})`, { requestId });
+      log('info', `Converting Responses API to Anthropic: ${anthropicBody.messages?.length} messages, roles=[${anthropicBody.messages?.map(m => m.role).join(',')}]`, { requestId });
+      log('debug', `Anthropic request body: ${requestBody.substring(0, 2000)}`, { requestId });
     } else if (isAnthropicFormat && isLocalBackend) {
       // Anthropic -> OpenAI conversion
       requestBody = JSON.stringify(anthropicToOpenAI(body));
@@ -4026,6 +4027,10 @@ async function handleProxyRequest(req, res, body) {
     }
 
     // Process non-streaming response
+    // Log error responses for debugging
+    if (proxyResponse.status >= 400) {
+      log('warn', `Backend returned ${proxyResponse.status}: ${proxyResponse.body?.substring(0, 500)}`, { requestId });
+    }
     // Save raw response for tool call detection (before format conversion)
     const rawResponseBody = proxyResponse.body;
     let responseBody = proxyResponse.body;
