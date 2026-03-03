@@ -2752,7 +2752,10 @@ async function executeToolCall(toolCall) {
           weatherResult = formatSearchResults(searchResults);
         }
 
-        return weatherResult || `Could not get weather for "${location}". Please try again later.`;
+        // Prepend current date/time so the model doesn't hallucinate the date
+        const now = new Date();
+        const datePrefix = `Current date/time: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC\n\n`;
+        return datePrefix + (weatherResult || `Could not get weather for "${location}". Please try again later.`);
       } catch (e) {
         return `Error getting weather forecast: ${e.message}`;
       }
