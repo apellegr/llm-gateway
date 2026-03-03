@@ -1422,7 +1422,7 @@ const WEATHER_FORECAST_TOOL = {
   type: 'function',
   function: {
     name: 'weather_forecast',
-    description: 'Get a multi-day weather forecast for a location. Use this when the user asks about weather for the next few days, weekly forecast, or planning for future weather.',
+    description: 'Get current weather conditions and forecast for any location worldwide. ALWAYS use this tool instead of web_search for ANY weather-related query, including current weather, temperature, forecasts, rain, humidity, wind, or clothing advice. Works for all cities and countries.',
     parameters: {
       type: 'object',
       properties: {
