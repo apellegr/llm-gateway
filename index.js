@@ -3931,10 +3931,10 @@ async function handleProxyRequest(req, res, body) {
     // Save original streaming preference before any modifications
     const clientWantedStreaming = parsedBody.stream === true;
 
-    // ALWAYS inject gateway tools for local backends (let the model decide when to use them)
+    // Inject gateway tools for local and Anthropic backends (let the model decide when to use them)
     // This enables tool calling for weather, news, calculations, etc.
     // Merge with client tools if present (e.g., clawdbot's read/write/exec)
-    if (isLocalBackend) {
+    if (isLocalBackend || backend === 'anthropic') {
       // For simple queries (conversation, realtime), strip client tools to reduce
       // prompt size (~22s savings at 153 tok/s). The model can still see results
       // from previous client tool calls in conversation history.
