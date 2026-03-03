@@ -1161,27 +1161,117 @@ function anthropicToOpenAI(body) {
 function openAIToAnthropic(body) {
   const parsed = typeof body === 'string' ? JSON.parse(body) : body;
 
-  // Filter out system messages and convert to Anthropic format
-  const messages = (parsed.messages || []).filter(m => m.role !== 'system');
   const systemMessage = (parsed.messages || []).find(m => m.role === 'system');
+
+  // Convert OpenAI Chat Completions messages to Anthropic Messages API format.
+  // Anthropic only allows role: "user" or "assistant".
+  // - assistant messages with tool_calls → content: [{type: "tool_use", ...}]
+  // - role: "tool" messages → role: "user", content: [{type: "tool_result", ...}]
+  const anthropicMessages = [];
+  for (const msg of (parsed.messages || [])) {
+    if (msg.role === 'system') continue;
+
+    if (msg.role === 'assistant') {
+      const content = [];
+      // Add text content if present
+      if (msg.content) {
+        content.push({ type: 'text', text: msg.content });
+      }
+      // Convert tool_calls to tool_use blocks
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        for (const tc of msg.tool_calls) {
+          let input = {};
+          try {
+            input = typeof tc.function.arguments === 'string'
+              ? JSON.parse(tc.function.arguments)
+              : (tc.function.arguments || {});
+          } catch (e) {
+            input = { raw: tc.function.arguments };
+          }
+          content.push({
+            type: 'tool_use',
+            id: tc.id || ('toolu_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+            name: tc.function.name,
+            input
+          });
+        }
+      }
+      if (content.length > 0) {
+        anthropicMessages.push({ role: 'assistant', content });
+      }
+    } else if (msg.role === 'tool') {
+      // Convert tool result to user message with tool_result content block
+      anthropicMessages.push({
+        role: 'user',
+        content: [{
+          type: 'tool_result',
+          tool_use_id: msg.tool_call_id,
+          content: msg.content || ''
+        }]
+      });
+    } else if (msg.role === 'user') {
+      anthropicMessages.push({
+        role: 'user',
+        content: typeof msg.content === 'string'
+          ? msg.content
+          : msg.content
+      });
+    }
+  }
+
+  // Anthropic requires alternating user/assistant messages.
+  // Merge consecutive messages with the same role.
+  const mergedMessages = [];
+  for (const msg of anthropicMessages) {
+    const last = mergedMessages[mergedMessages.length - 1];
+    if (last && last.role === msg.role) {
+      // Merge content into arrays
+      const lastContent = Array.isArray(last.content) ? last.content
+        : (typeof last.content === 'string' ? [{ type: 'text', text: last.content }] : [last.content]);
+      const newContent = Array.isArray(msg.content) ? msg.content
+        : (typeof msg.content === 'string' ? [{ type: 'text', text: msg.content }] : [msg.content]);
+      last.content = [...lastContent, ...newContent];
+    } else {
+      mergedMessages.push({ ...msg });
+    }
+  }
+
+  // Anthropic requires the first message to be role: "user"
+  // If conversation starts with assistant, prepend a placeholder user message
+  if (mergedMessages.length > 0 && mergedMessages[0].role !== 'user') {
+    mergedMessages.unshift({ role: 'user', content: 'Continue.' });
+  }
 
   // Map model name to valid Anthropic model
   let model = parsed.model || 'claude-sonnet-4-20250514';
   const modelLower = model.toLowerCase();
   if (!modelLower.includes('claude')) {
-    // Default to Claude Sonnet for non-Claude model names
     model = 'claude-sonnet-4-20250514';
+  }
+
+  // Convert tools from OpenAI format to Anthropic format
+  let anthropicTools = undefined;
+  if (parsed.tools && parsed.tools.length > 0) {
+    anthropicTools = parsed.tools.map(t => {
+      const fn = t.function || t;
+      return {
+        name: fn.name,
+        description: fn.description || '',
+        input_schema: fn.parameters || { type: 'object', properties: {} }
+      };
+    });
   }
 
   return {
     model,
-    messages: messages,
+    messages: mergedMessages,
     max_tokens: parsed.max_tokens || 1024,
     temperature: parsed.temperature,
     top_p: parsed.top_p,
     stream: parsed.stream || false,
     stop_sequences: parsed.stop,
-    ...(systemMessage && { system: systemMessage.content })
+    ...(systemMessage && { system: systemMessage.content }),
+    ...(anthropicTools && { tools: anthropicTools })
   };
 }
 
@@ -4099,6 +4189,23 @@ async function handleProxyRequest(req, res, body) {
             contentBeforeToolCall = hermesResult.cleanContent;
           }
         }
+        // Check for Anthropic-style tool_use in content blocks
+        else if (rawParsed.content && Array.isArray(rawParsed.content)) {
+          const toolUseBlocks = rawParsed.content.filter(b => b.type === 'tool_use');
+          const textBlocks = rawParsed.content.filter(b => b.type === 'text');
+          if (toolUseBlocks.length > 0) {
+            // Convert Anthropic tool_use to OpenAI tool_calls format for unified handling
+            toolCalls = toolUseBlocks.map(b => ({
+              id: b.id,
+              type: 'function',
+              function: {
+                name: b.name,
+                arguments: typeof b.input === 'string' ? b.input : JSON.stringify(b.input || {})
+              }
+            }));
+            contentBeforeToolCall = textBlocks.map(b => b.text).join('\n');
+          }
+        }
 
         // Execute tool calls and continue conversation
         if (toolCalls.length > 0) {
@@ -4175,18 +4282,31 @@ async function handleProxyRequest(req, res, body) {
             messages: followUpMessages
           };
 
+          // If backend is Anthropic, convert follow-up to Anthropic format
+          let followUpRequestBody;
+          if (backend === 'anthropic') {
+            followUpRequestBody = JSON.stringify(openAIToAnthropic(followUpBody));
+          } else {
+            followUpRequestBody = JSON.stringify(followUpBody);
+          }
+
           log('info', `Making follow-up request with tool results`, { requestId });
 
           const followUpResponse = await makeRequest(targetUrl, {
             method: 'POST',
             headers: requestHeaders
-          }, JSON.stringify(followUpBody), false);
+          }, followUpRequestBody, false);
 
           if (followUpResponse.status === 200) {
+            // If follow-up went to Anthropic, convert response to Chat Completions first
+            let followUpBody2 = followUpResponse.body;
+            if (backend === 'anthropic') {
+              followUpBody2 = JSON.stringify(anthropicResponseToOpenAI(followUpResponse.body, requestLog.model));
+            }
             // If Responses API conversion is needed, convert the follow-up response
             if (needsResponseConversion) {
               const isHermesResponse = requestLog.isHermes || requestLog.formatConversion?.includes('hermes');
-              const converted = chatCompletionsToResponses(followUpResponse.body, requestLog.model, isHermesResponse);
+              const converted = chatCompletionsToResponses(followUpBody2, requestLog.model, isHermesResponse);
 
               // Check if reasoning was stripped and content is empty
               const hasContent = converted.output?.some(item =>
@@ -4197,7 +4317,7 @@ async function handleProxyRequest(req, res, body) {
                 // the model was explicitly instructed to give a direct answer, so
                 // use the raw content (bypassing reasoning detection).
                 try {
-                  const rawFollowUp = JSON.parse(followUpResponse.body);
+                  const rawFollowUp = JSON.parse(followUpBody2);
                   const msg = rawFollowUp.choices?.[0]?.message || {};
                   // GPT-OSS often puts actual answers in reasoning_content, not content
                   const rawContent = msg.content || msg.reasoning_content || '';
@@ -4230,7 +4350,7 @@ async function handleProxyRequest(req, res, body) {
 
               responseBody = JSON.stringify(converted);
             } else {
-              responseBody = followUpResponse.body;
+              responseBody = followUpBody2;
             }
             requestLog.toolCallFollowUp = true;
             log('info', `Tool call follow-up completed`, { requestId });
