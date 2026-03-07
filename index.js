@@ -1302,7 +1302,28 @@ function openAIResponseToAnthropic(response, model) {
 function anthropicResponseToOpenAI(response, model) {
   const parsed = typeof response === 'string' ? JSON.parse(response) : response;
 
-  const content = parsed.content?.[0]?.text || '';
+  // Extract text from text blocks
+  const textBlocks = (parsed.content || []).filter(b => b.type === 'text');
+  const content = textBlocks.map(b => b.text).join('\n') || '';
+
+  // Convert tool_use blocks to OpenAI tool_calls format
+  const toolUseBlocks = (parsed.content || []).filter(b => b.type === 'tool_use');
+  const toolCalls = toolUseBlocks.length > 0 ? toolUseBlocks.map(b => ({
+    id: b.id,
+    type: 'function',
+    function: {
+      name: b.name,
+      arguments: typeof b.input === 'string' ? b.input : JSON.stringify(b.input || {})
+    }
+  })) : undefined;
+
+  const message = {
+    role: 'assistant',
+    content: content || (toolCalls ? null : '')
+  };
+  if (toolCalls) {
+    message.tool_calls = toolCalls;
+  }
 
   return {
     id: 'chatcmpl-proxy-' + Date.now(),
@@ -1311,11 +1332,10 @@ function anthropicResponseToOpenAI(response, model) {
     model: model || parsed.model || 'claude-sonnet-4',
     choices: [{
       index: 0,
-      message: {
-        role: 'assistant',
-        content: content
-      },
-      finish_reason: parsed.stop_reason === 'end_turn' ? 'stop' : 'length'
+      message,
+      finish_reason: parsed.stop_reason === 'end_turn' ? 'stop'
+        : parsed.stop_reason === 'tool_use' ? 'tool_calls'
+        : 'length'
     }],
     usage: {
       prompt_tokens: parsed.usage?.input_tokens || 0,
