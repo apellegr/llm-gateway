@@ -4015,11 +4015,15 @@ async function handleProxyRequest(req, res, body) {
         log('debug', 'Disabled streaming for Responses API tool call handling', { requestId });
       }
 
-      // Detect tool call loops: count previous client tool call rounds in the conversation.
+      // Detect tool call loops: count client tool call rounds since the last user message
+      // (i.e. the current turn only, not the entire conversation history).
       // If the model has already made too many tool calls that aren't gateway tools,
       // strip tools to force a text response and prevent infinite loops.
       const MAX_CLIENT_TOOL_ROUNDS = 5;
-      const clientToolRounds = (chatCompBody.messages || []).filter(m =>
+      const allMsgs = chatCompBody.messages || [];
+      const lastUserIdx = allMsgs.map((m, i) => m.role === 'user' ? i : -1).filter(i => i >= 0).pop() ?? -1;
+      const currentTurnMsgs = lastUserIdx >= 0 ? allMsgs.slice(lastUserIdx + 1) : [];
+      const clientToolRounds = currentTurnMsgs.filter(m =>
         m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0 &&
         m.tool_calls.every(tc => !GATEWAY_TOOLS.has(tc.function?.name))
       ).length;
