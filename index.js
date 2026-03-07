@@ -4040,9 +4040,11 @@ async function handleProxyRequest(req, res, body) {
           ...(firstUserMsg ? [firstUserMsg] : []),
           // Include last user message if different from first
           ...(lastUserMsg && lastUserMsg !== firstUserMsg ? [lastUserMsg] : []),
+          // Use 'user' role for the instruction — some models (Qwen 3.5) require all
+          // system messages at the beginning and reject mid-conversation system messages.
           {
-            role: 'system',
-            content: 'Previous tool calls have been removed to save context. Based on the user\'s question, provide a helpful, direct answer. Do not request more data or make additional tool calls.'
+            role: 'user',
+            content: '[System note: Previous tool calls have been removed to save context. Based on my question, provide a helpful, direct answer. Do not request more data or make additional tool calls.]'
           }
         ];
         chatCompBody.messages = truncated;
