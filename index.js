@@ -1539,10 +1539,6 @@ const WEATHER_FORECAST_TOOL = {
         location: {
           type: 'string',
           description: 'The city or location to get forecast for'
-        },
-        days: {
-          type: 'number',
-          description: 'Number of days to forecast (1-3, defaults to 3)'
         }
       },
       required: ['location']
@@ -2810,7 +2806,9 @@ async function executeToolCall(toolCall) {
     case 'weather_forecast':
       try {
         const location = args.location || 'New York';
-        const days = Math.min(Math.max(args.days || 3, 1), 3);
+        // Always fetch all 3 days from wttr.in — it's free and ensures
+        // "tomorrow" is always included regardless of timezone edge cases.
+        const days = 3;
 
         // Try wttr.in first (structured data), fall back to Brave Search
         let weatherResult = null;
