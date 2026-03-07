@@ -4043,7 +4043,8 @@ async function handleProxyRequest(req, res, body) {
       const chatCompletions = responsesToChatCompletions(body, false);
       const anthropicBody = openAIToAnthropic(JSON.stringify(chatCompletions));
       // Save original streaming preference - we'll need to emit as streaming if client expected it
-      const originalWantedStreaming = parsedBody.stream === true;
+      // Use clientWantedStreaming (saved before tool injection may have set parsedBody.stream=false)
+      const originalWantedStreaming = clientWantedStreaming;
       // Disable streaming for Anthropic (we'll convert to streaming events on response)
       anthropicBody.stream = false;
       requestBody = JSON.stringify(anthropicBody);
