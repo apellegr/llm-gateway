@@ -3,6 +3,7 @@
 # Test all tool-calling models directly against llama-server
 #
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCALAI_HOST="localai.treehouse"
 CONFIG_FILE="/home/apellegr/.config/llama-server/concierge.env"
 
@@ -89,7 +90,7 @@ for model in "${MODELS_TO_TEST[@]}"; do
     fi
 
     log "Running tool tests..."
-    node /home/apellegr/llm-gateway/test-direct-tools.js --host $LOCALAI_HOST --port 8003
+    node "$SCRIPT_DIR/test-direct-tools.js" --host $LOCALAI_HOST --port 8003
 
     echo ""
 done

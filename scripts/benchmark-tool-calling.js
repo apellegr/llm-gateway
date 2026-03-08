@@ -130,7 +130,7 @@ Categories tested:
 // Generate output filename
 if (!config.output) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
-  config.output = path.join(__dirname, 'benchmark-results', `tool-calling-${config.model}-${timestamp}.json`);
+  config.output = path.join(__dirname, '..', 'results', `tool-calling-${config.model}-${timestamp}.json`);
 }
 
 // Make HTTP request

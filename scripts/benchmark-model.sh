@@ -7,9 +7,11 @@ MODEL_PATH="$1"
 CTX_SIZE="${2:-8192}"
 NUM_PROMPTS="${3:-15}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REMOTE_HOST="localai.treehouse"
 MODELS_BASE="/home/apellegr/Strix-Halo-Models/models"
-RESULTS_DIR="/home/apellegr/llm-gateway/benchmark-results"
+RESULTS_DIR="$REPO_DIR/results"
 GATEWAY_URL="http://localhost:28080"
 
 # Colors
@@ -111,7 +113,7 @@ pkill -f "port-forward.*28080" 2>/dev/null || true
 kubectl port-forward -n treehouse deployment/clawdbot 28080:8080 &>/dev/null &
 sleep 2
 
-node compare-quality.js \
+node "$SCRIPT_DIR/compare-quality.js" \
     -g "$GATEWAY_URL" \
     --random "$NUM_PROMPTS" \
     --output "$OUTPUT_FILE" \

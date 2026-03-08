@@ -4,8 +4,10 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MODELS_DIR="/home/apellegr/Strix-Halo-Models/models"
-RESULTS_DIR="/home/apellegr/llm-gateway/benchmark-results"
+RESULTS_DIR="$REPO_DIR/results"
 GATEWAY_URL="http://localhost:28080"
 REMOTE_HOST="localai.treehouse"
 TEST_PORT=8003  # We'll use the concierge port for testing
@@ -140,7 +142,7 @@ run_benchmark() {
     log "Running benchmark for: $model_name"
 
     # Run quality comparison
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" node compare-quality.js \
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" node "$SCRIPT_DIR/compare-quality.js" \
         -g "$GATEWAY_URL" \
         --random "$NUM_PROMPTS" \
         --output "$output_file" \

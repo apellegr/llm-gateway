@@ -10,10 +10,12 @@
 set -e
 
 # Configuration
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCALAI_HOST="localai.treehouse"
 GATEWAY_URL="http://localhost:28080"
 CONFIG_FILE="/home/apellegr/.config/llama-server/concierge.env"
-RESULTS_DIR="/home/apellegr/llm-gateway/benchmark-results"
+RESULTS_DIR="$REPO_DIR/results"
 DISTROBOX_CMD="/home/apellegr/.local/bin/distrobox enter llama-vulkan-radv --"
 
 # Model configurations
@@ -114,7 +116,7 @@ benchmark_model() {
 
     # Run benchmark
     log "Running tool-calling benchmark..."
-    node /home/apellegr/llm-gateway/benchmark-tool-calling.js \
+    node "$SCRIPT_DIR/benchmark-tool-calling.js" \
         --model "$model_name" \
         --gateway "$GATEWAY_URL" \
         --limit 10 \

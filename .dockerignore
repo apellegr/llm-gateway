@@ -7,3 +7,5 @@ router-history.json
 *.log
 .env
 .DS_Store
+scripts/
+results/
