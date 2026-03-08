@@ -374,6 +374,31 @@ proxy-cli tokens   - Show token usage statistics
 proxy-cli help     - Show all commands
 ```
 
+## Project Structure
+
+```
+llm-gateway/
+├── index.js              # Application entry point (all gateway logic)
+├── package.json
+├── config.example.json   # Example configuration
+├── Dockerfile
+├── public/               # Dashboard static files
+├── docs/                 # Additional documentation
+├── scripts/              # Test and benchmark scripts
+│   ├── benchmark-*.sh/js # Model quality and tool-calling benchmarks
+│   ├── test-*.sh/js      # Gateway and tool integration tests
+│   ├── compare-quality.js# Side-by-side local vs Anthropic comparison
+│   └── test-prompts.txt  # 1000 categorized test prompts
+├── results/              # Benchmark and comparison results
+│   ├── benchmark-*.json  # Per-model quality benchmark data
+│   ├── tool-calling-*.json # Tool-calling benchmark data
+│   ├── quality-comparison*.json # Local vs Anthropic comparisons
+│   ├── BENCHMARK_REPORT.md
+│   ├── TOOL_CALLING_REPORT.md
+│   └── summary.csv
+└── .github/workflows/    # CI/CD (Docker image build + push)
+```
+
 ## Development
 
 ### Building Docker Image
@@ -384,6 +409,22 @@ The image is automatically built and pushed via GitHub Actions on push to `main`
 # Manual build
 docker build -t llm-gateway .
 docker push ghcr.io/apellegr/llm-gateway:latest
+```
+
+### Running Tests
+
+```bash
+# Test gateway routing and responses
+node scripts/test-gateway.js --limit 20 --verbose
+
+# Test tool calling against a specific model
+node scripts/benchmark-tool-calling.js --model qwen3.5-122b --limit 10
+
+# Compare local model quality vs Anthropic
+node scripts/compare-quality.js --random 30 --output results/comparison.json
+
+# Run all tool-calling models through direct tests
+bash scripts/test-all-tool-models.sh
 ```
 
 ## License
