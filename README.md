@@ -1,55 +1,55 @@
 # LLM Gateway
 
-Intelligent LLM routing proxy with multi-backend support, smart routing, tool calling, and format conversion.
+LLM routing proxy with multi-backend support, tool calling, format conversion, and request logging.
 
 ## Architecture
 
 ```
-                                    ┌─────────────────────────────────────────┐
-                                    │            LLM Gateway                   │
-                                    │              (Node.js)                   │
-                                    └─────────────────────────────────────────┘
-                                                      │
-    ┌─────────────────────────────────────────────────┼─────────────────────────────────────────────────┐
-    │                                                 │                                                 │
-    ▼                                                 ▼                                                 ▼
-┌───────────────┐                            ┌───────────────────┐                            ┌─────────────────┐
-│  Web Dashboard│                            │   Main Proxy      │                            │ Prometheus      │
-│   :8080/      │                            │   :8080/v1/*      │                            │ Metrics :9090   │
-└───────────────┘                            └───────────────────┘                            └─────────────────┘
-                                                      │
-                          ┌───────────────────────────┼───────────────────────────┐
-                          │                           │                           │
-                          ▼                           ▼                           ▼
-                  ┌──────────────┐           ┌──────────────┐           ┌──────────────┐
-                  │ Smart Router │           │   Format     │           │    Tool      │
-                  │Classification│           │  Conversion  │           │  Injection   │
-                  └──────────────┘           └──────────────┘           └──────────────┘
-                          │                           │                           │
-                          └───────────────────────────┼───────────────────────────┘
-                                                      │
-        ┌─────────────────┬───────────────────────────┼───────────────────────────┬─────────────────┐
-        │                 │                           │                           │                 │
-        ▼                 ▼                           ▼                           ▼                 ▼
-  ┌──────────┐     ┌────────────┐            ┌──────────────┐            ┌──────────────┐   ┌─────────┐
-  │concierge │     │ secretary  │            │  archivist   │            │  anthropic   │   │ MongoDB │
-  │  :8001   │     │   :8002    │            │    :8003     │            │ api.anthropic│   │ Storage │
-  │ 3B fast  │     │  14B code  │            │ 70B research │            │    .com      │   │         │
-  └──────────┘     └────────────┘            └──────────────┘            └──────────────┘   └─────────┘
+                                ┌─────────────────────────────────┐
+                                │          LLM Gateway            │
+                                │           (Node.js)             │
+                                └─────────────────────────────────┘
+                                              │
+        ┌─────────────────────────────────────┼──────────────────────────────────────┐
+        │                                     │                                      │
+        ▼                                     ▼                                      ▼
+┌───────────────┐                    ┌───────────────────┐                  ┌─────────────────┐
+│  Dashboard    │                    │   Proxy           │                  │  Prometheus     │
+│  :8080/       │                    │   :8080/v1/*      │                  │  Metrics :9090  │
+└───────────────┘                    └───────────────────┘                  └─────────────────┘
+                                              │
+                          ┌───────────────────┼───────────────────┐
+                          │                   │                   │
+                          ▼                   ▼                   ▼
+                  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+                  │   Format     │   │    Tool      │   │  Thinking    │
+                  │  Conversion  │   │  Injection   │   │  Stripping   │
+                  └──────────────┘   └──────────────┘   └──────────────┘
+                          │                   │                   │
+                          └───────────────────┼───────────────────┘
+                                              │
+                ┌─────────────────────────────┼─────────────────────────────┐
+                │                             │                             │
+                ▼                             ▼                             ▼
+        ┌──────────────┐            ┌──────────────┐                ┌─────────┐
+        │    local     │            │  anthropic   │                │ MongoDB │
+        │ llama.cpp    │            │ api.anthropic│                │ Storage │
+        │   :8001      │            │    .com      │                │         │
+        └──────────────┘            └──────────────┘                └─────────┘
 ```
 
 ## Features
 
-- **Multi-Backend Routing** - Route requests to multiple LLM backends (local llama.cpp servers, Anthropic API)
-- **Smart Routing** - Automatically classify queries and route to the best backend based on content
-- **Tool Calling** - Automatic tool injection for local models (web search, calculator, time)
-- **Format Conversion** - Bidirectional conversion between Anthropic, OpenAI Chat Completions, and Responses API formats
-- **Real-Time Data** - Weather (wttr.in), crypto prices (CoinGecko), web search (DuckDuckGo)
-- **MongoDB Storage** - Persistent request/response logging with privacy controls
-- **Web Dashboard** - Real-time monitoring, stats, and controls
-- **CLI Interface** - Control the gateway via `proxy-cli` commands
-- **Streaming Support** - Full SSE streaming with format translation
-- **Prometheus Metrics** - Metrics endpoint for monitoring
+- **Multi-Backend Routing** - Route to local llama.cpp servers and/or Anthropic API with runtime switching
+- **Tool Calling** - Automatic tool injection and execution for local models (weather, web search, time, calculator, etc.)
+- **Format Conversion** - Bidirectional conversion between OpenAI Chat Completions, Anthropic Messages, and OpenAI Responses API
+- **Thinking/Reasoning Stripping** - Strips `reasoning_content` and thinking patterns from model responses
+- **Smart Routing** - Optional query classification to route to the best backend (disabled by default)
+- **Real-Time Data** - Weather (wttr.in), web search (Brave/DuckDuckGo), crypto (CoinGecko), precious metals (metals.live)
+- **MongoDB Storage** - Persistent request/response logging with configurable retention
+- **Tool Loop Detection** - Prevents infinite client-side tool call loops (scoped per conversation turn)
+- **Streaming Support** - Full SSE streaming with real-time format translation
+- **Prometheus Metrics** - Request counts, latency, token usage by backend
 
 ## Quick Start
 
@@ -94,48 +94,16 @@ Create a `config.json` file:
 
 ```json
 {
+  "mode": "passthrough",
   "backends": {
-    "concierge": "http://localai.treehouse:8001",
-    "secretary": "http://localai.treehouse:8002",
-    "archivist": "http://localai.treehouse:8003",
+    "local": "http://192.168.1.214:8001",
     "anthropic": "https://api.anthropic.com"
   },
-  "defaultBackend": "concierge",
+  "defaultBackend": "local",
   "logging": {
     "level": "info",
     "includeBody": true,
     "maxBodyLength": 10000
-  },
-  "smartRouter": {
-    "enabled": true,
-    "classifierBackend": "concierge",
-    "backends": {
-      "concierge": {
-        "name": "Concierge (Llama-3.2-3B)",
-        "specialties": ["general", "conversation", "quick"],
-        "contextWindow": 32768,
-        "speed": "fast"
-      },
-      "secretary": {
-        "name": "Secretary (Qwen-2.5-14B)",
-        "specialties": ["code", "programming", "technical"],
-        "contextWindow": 32768,
-        "speed": "medium"
-      },
-      "archivist": {
-        "name": "Archivist (Hermes-3-70B)",
-        "specialties": ["research", "analysis", "expert"],
-        "contextWindow": 32768,
-        "speed": "slow"
-      },
-      "anthropic": {
-        "name": "Claude (Anthropic)",
-        "specialties": ["complex", "nuanced", "long-context"],
-        "contextWindow": 200000,
-        "speed": "medium",
-        "cost": "paid"
-      }
-    }
   },
   "storage": {
     "enabled": true,
@@ -147,111 +115,14 @@ Create a `config.json` file:
       "storeResponses": true
     },
     "retention": {
-      "days": 30,
-      "maxDocuments": 10000
+      "days": 0,
+      "maxDocuments": 0
     }
-  }
-}
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CONFIG_PATH` | `/config/config.json` | Path to configuration file |
-| `PROXY_PORT` | `8080` | Main proxy port |
-| `METRICS_PORT` | `9090` | Prometheus metrics port |
-| `ANTHROPIC_API_KEY` | - | API key for Anthropic backend |
-
-## Smart Routing
-
-When enabled, the gateway automatically classifies queries and routes them to the most appropriate backend:
-
-| Category | Backend | Examples |
-|----------|---------|----------|
-| `conversation` | concierge (3B) | "Hello!", "How are you?", greetings |
-| `code` | secretary (14B) | "Write a Python function", code blocks |
-| `research` | archivist (70B) | "Explain quantum computing", analysis |
-| `realtime` | local + tools | "What's the weather?", "Bitcoin price?" |
-| `complex` | anthropic | "Analyze this contract", nuanced tasks |
-| `multi` | all backends | Open-ended questions (parallel query) |
-
-### Classification Methods
-
-1. **Quick Classification** - Fast regex-based pattern matching for obvious cases:
-   - Greetings and short messages → `conversation`
-   - Code blocks and programming keywords → `code`
-   - Weather, news, prices → `realtime`
-   - Research keywords → `research`
-
-2. **LLM Classification** - For ambiguous queries, uses a fast local model to classify
-
-3. **User Preferences** - Per-user overrides stored in router history
-
-## Tool System
-
-The gateway automatically injects tools for all local backend requests:
-
-### Available Tools
-
-| Tool | Description | Data Source |
-|------|-------------|-------------|
-| `web_search` | Search for current information | wttr.in (weather), CoinGecko (crypto), DuckDuckGo (general) |
-| `get_current_time` | Get current date/time with timezone | System clock |
-| `calculator` | Evaluate math expressions | Safe eval (sqrt, pow, trig, etc.) |
-| `send_notification` | Send push notifications | Ntfy.sh or Telegram |
-| `set_reminder` | Set reminders for later | MongoDB + notifications |
-| `set_timer` | Set countdown timers | In-memory + notifications |
-| `manage_todos` | Todo list management | MongoDB |
-| `weather_forecast` | Multi-day weather forecast | wttr.in |
-| `convert_units` | Unit conversion | Built-in (length, weight, volume, temp, speed, data) |
-| `dictionary` | Word definitions | Free Dictionary API |
-
-### Tool Execution Flow
-
-```
-1. Client sends request
-2. Gateway injects tools for local backends
-3. Streaming disabled (need full response)
-4. Backend returns response (may include tool_calls)
-5. If tool_calls detected:
-   a. Execute each tool
-   b. Send results back to model
-   c. Repeat up to 3 rounds
-6. Return final response with real data
-```
-
-### Example Queries
-
-**Information Tools:**
-- "What's the weather in Tokyo?" → `web_search`
-- "What's the forecast for next 3 days in London?" → `weather_forecast`
-- "What time is it in New York?" → `get_current_time`
-- "What is 127 * 43?" → `calculator`
-- "Convert 100 miles to kilometers" → `convert_units`
-- "Define 'ephemeral'" → `dictionary`
-- "What's the Bitcoin price?" → `web_search`
-
-**Productivity Tools:**
-- "Remind me to call mom in 30 minutes" → `set_reminder`
-- "Set a timer for 5 minutes" → `set_timer`
-- "Add 'buy milk' to my todo list" → `manage_todos`
-- "Show my todos" → `manage_todos`
-- "Mark task todo_123 as complete" → `manage_todos`
-
-**Communication:**
-- "Send me a notification saying 'Hello!'" → `send_notification`
-
-### Tools Configuration
-
-Configure tools in `config.json`:
-
-```json
-{
+  },
   "tools": {
     "notifications": {
       "enabled": true,
-      "provider": "ntfy",
+      "provider": "telegram",
       "ntfy": {
         "server": "https://ntfy.sh",
         "topic": "your-topic-name"
@@ -272,120 +143,122 @@ Configure tools in `config.json`:
 }
 ```
 
-**Environment Variables for Notifications:**
-- `TELEGRAM_BOT_TOKEN` - Telegram bot token (if using Telegram provider)
-- `TELEGRAM_CHAT_ID` - Telegram chat ID to send notifications to
+### Environment Variables
 
-### Real-Time Data Sources
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CONFIG_PATH` | `/config/config.json` | Path to configuration file |
+| `PROXY_PORT` | `8080` | Main proxy port |
+| `METRICS_PORT` | `9090` | Prometheus metrics port |
+| `ANTHROPIC_API_KEY` | - | API key for Anthropic backend |
+| `BRAVE_SEARCH_API_KEY` | - | Brave Search API key (falls back to DuckDuckGo) |
+| `TELEGRAM_BOT_TOKEN` | - | Telegram bot token for notifications |
+| `TELEGRAM_CHAT_ID` | - | Telegram chat ID for notifications |
 
-**Weather** (wttr.in):
-- "What's the weather in Tokyo?"
-- "Do I need an umbrella in Paris?"
-- "Temperature in New York"
+### Storage Retention
 
-**Crypto Prices** (CoinGecko):
-- "Bitcoin price"
-- "What's ETH worth?"
-- "Solana price in EUR"
+| `days` | `maxDocuments` | Behavior |
+|--------|----------------|----------|
+| `30` | `10000` | Delete after 30 days, keep max 10K docs |
+| `0` | `0` | Keep forever, no limits |
+| `365` | `0` | Delete after 1 year, no doc limit |
 
-**Web Search** (DuckDuckGo):
-- "Latest news about AI"
-- "Who won the game last night?"
-- General current events
+When `days > 0`, a MongoDB TTL index is created on the `timestamp` field.
 
-### Model Tool Invocation Formats
+## Tool System
 
-Different models invoke tools in different ways. The gateway handles all formats automatically.
+The gateway automatically injects and executes tools for local backend requests. When the client already provides its own tools, only essential gateway tools are injected (to minimize prompt size).
 
-#### OpenAI-Compatible Format (Most Models)
+### Available Tools
 
-Models with native tool calling support (Qwen, Mistral-Nemo, GLM, Functionary, xLAM) return tool calls in the standard OpenAI format:
+| Tool | Description | Data Source |
+|------|-------------|-------------|
+| `web_search` | Search for current information | Brave Search (primary), DuckDuckGo (fallback). Auto-detects weather, crypto, precious metals, service status queries |
+| `weather_forecast` | Current weather and 3-day forecast | wttr.in (primary), Brave Search (fallback) |
+| `get_current_time` | Current date/time with timezone | System clock |
+| `calculator` | Math expressions | Safe eval (sqrt, pow, trig, log, etc.) |
+| `convert_units` | Unit conversion | Built-in tables (length, weight, volume, temp, speed, data) |
+| `dictionary` | Word definitions | Free Dictionary API |
+| `send_notification` | Push notifications | ntfy or Telegram |
+| `set_reminder` | Time-based reminders | MongoDB + notifications |
+| `set_timer` | Countdown timers | In-memory + notifications |
+| `manage_todos` | Todo list (add/list/complete/delete) | MongoDB |
+
+### Tool Injection Strategy
+
+- **Client has no tools**: All 10 gateway tools are injected
+- **Client has its own tools**: Only 3 essential tools injected (`web_search`, `weather_forecast`, `get_current_time`) to keep prompt tokens low
+- **Simple queries** (greetings, basic chat): Client tools are stripped entirely to save prompt processing time
+
+### Gateway vs Client Tools
+
+**Gateway tools** are executed server-side — the gateway intercepts the model's tool call, runs it, and sends results back to the model in a follow-up request. The client never sees the tool call.
+
+**Client tools** (any tool not in the gateway's set) pass through to the client for execution. The client is responsible for running them and sending results back.
+
+### Tool Execution Flow
+
+```
+1. Client sends request
+2. Gateway injects tools for local backends
+3. Streaming disabled for tool interception
+4. Backend returns response
+5. If gateway tool calls detected:
+   a. Execute each tool
+   b. Send results back to model (single follow-up, no tools included)
+   c. Return final response to client
+6. If only client tool calls → pass through to client
+7. If no tool calls → return response directly
+```
+
+### Tool Loop Detection
+
+For client-side tool calls via the Responses API, the gateway tracks how many tool call rounds have occurred since the last user message. After 5 rounds (`MAX_CLIENT_TOOL_ROUNDS`), all tools are stripped and conversation history is truncated to force a text response.
+
+## Tool Calling Formats
+
+The gateway handles multiple tool invocation formats automatically:
+
+### OpenAI Native (preferred)
+
+Models with `--jinja` flag (Qwen, Llama, Mistral) return standard `tool_calls`:
 
 ```json
 {
   "choices": [{
     "message": {
-      "role": "assistant",
-      "content": null,
-      "tool_calls": [{
-        "id": "call_abc123",
-        "type": "function",
-        "function": {
-          "name": "web_search",
-          "arguments": "{\"query\": \"weather in Tokyo\"}"
-        }
-      }]
+      "tool_calls": [{"function": {"name": "web_search", "arguments": "{...}"}}]
     },
     "finish_reason": "tool_calls"
   }]
 }
 ```
 
-#### Hermes XML Format
+### Hermes XML
 
-Hermes models output tool calls as XML-wrapped JSON in the content field:
+Hermes models output tool calls as XML in content. The gateway injects tool definitions as XML in the system prompt and parses responses:
 
 ```
-I'll search for that information.
-
 <tool_call>
 {"name": "web_search", "arguments": {"query": "weather in Tokyo"}}
 </tool_call>
 ```
 
-The gateway injects tool definitions as XML in the system prompt:
+### Anthropic Tool Use
 
-```xml
-<tools>
-<tool>
-<name>web_search</name>
-<description>Search the web for current information...</description>
-<parameters>{"type":"object","properties":{"query":{"type":"string"}}}</parameters>
-</tool>
-</tools>
+Anthropic-format `tool_use` content blocks are converted to OpenAI `tool_calls` for unified execution.
 
-When you need to call a tool, use this format:
-<tool_call>
-{"name": "tool_name", "arguments": {"arg1": "value1"}}
-</tool_call>
-```
+### Detection Priority
 
-#### JSON-Only Format (Fallback)
-
-Some models output just raw JSON without XML tags:
-
-```json
-{"name": "web_search", "arguments": {"query": "weather in Tokyo"}}
-```
-
-The gateway detects this as a tool call if the entire response is a JSON object with `name` and `arguments` fields.
-
-### Tool Call Detection Priority
-
-```
-1. Check for OpenAI-style tool_calls array
-   └─ If found → use those
-
-2. Check for Hermes XML format in content
-   └─ If <tool_call>...</tool_call> found → parse JSON inside
-
-3. Check for raw JSON tool call
-   └─ If entire content is {"name": "...", "arguments": {...}} → treat as tool call
-```
+1. OpenAI-style `tool_calls` array
+2. Hermes `<tool_call>` XML tags in content
+3. Raw JSON `{"name": "...", "arguments": {...}}` as entire content
 
 ### Model Compatibility
 
-| Model | Tool Format | Native Support | Gateway Handling |
-|-------|-------------|----------------|------------------|
-| Qwen-2.5 | OpenAI | Yes (with --jinja) | Direct tool_calls |
-| Mistral-Nemo | OpenAI | Yes (with --jinja) | Direct tool_calls |
-| GLM-4.7-Flash | OpenAI | Yes (with --jinja) | Direct tool_calls |
-| Functionary-v3.2 | OpenAI | Yes (requires specific template) | Direct tool_calls |
-| xLAM-2-8b | OpenAI | Yes (with --jinja) | Direct tool_calls |
-| Hermes-3 | XML in content | No (prompt-based) | Parse XML/JSON from content |
-| Llama-3.2-3B | Limited | Partial | May need Hermes fallback |
+Tool calling is enabled for all local backends and for models whose name contains: `qwen`, `llama`, `mistral`, or `hermes`.
 
-**Note:** llama.cpp requires the `--jinja` flag to enable native tool calling support for compatible models.
+llama.cpp requires the `--jinja` flag to enable native tool calling support.
 
 ## Format Conversion
 
@@ -393,18 +266,25 @@ The gateway automatically converts between API formats:
 
 | From | To | When |
 |------|-----|------|
-| Anthropic Messages | OpenAI Chat | Request to local backend |
-| OpenAI Chat | Anthropic Messages | Request to Anthropic |
-| OpenAI Responses | OpenAI Chat | Request to local backend |
-| OpenAI Chat | OpenAI Responses | Response from local backend |
+| Anthropic Messages | OpenAI Chat Completions | Request to local backend |
+| OpenAI Chat Completions | Anthropic Messages | Request to Anthropic backend |
+| OpenAI Responses API | OpenAI Chat Completions | Request to any backend |
+| OpenAI Chat Completions | OpenAI Responses API | Response to Responses API client |
 
-Streaming is fully supported with real-time format translation, including special handling for:
-- GLM models (strips thinking/reasoning content)
-- Hermes models (XML-based tool call format)
+Streaming is fully supported with real-time format translation.
+
+## Thinking/Reasoning Stripping
+
+The gateway strips thinking content from model responses at multiple levels:
+
+- **`reasoning_content` field**: If a model returns thinking in a separate field with empty `content`, the gateway uses the reasoning as content after stripping internal thought patterns
+- **Content analysis**: Detects and removes reasoning patterns ("Let me think...", "The user is asking...", etc.) from the beginning of responses
+- **Streaming**: Buffers and strips thinking content in real-time for streaming responses
+- **Jinja template note**: Qwen 3.5 models require `--reasoning-budget 0` server-side or `chat_template_kwargs: {"enable_thinking": false}` per-request to disable thinking entirely
 
 ## API Endpoints
 
-### Proxy Endpoints
+### Proxy (port 8080)
 
 | Endpoint | Description |
 |----------|-------------|
@@ -413,41 +293,36 @@ Streaming is fully supported with real-time format translation, including specia
 | `POST /v1/responses` | OpenAI Responses API |
 | `POST /{backend}/v1/...` | Route to specific backend |
 
-### Debug Endpoints
+### Debug
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /debug/health` | Health check with backend status |
-| `GET /debug/logs?limit=N` | Recent request logs |
-| `GET /debug/stats` | Aggregated statistics |
-| `GET /debug/tokens` | Token usage by backend |
-| `GET /debug/models` | Backend status and loaded models |
-| `GET /debug/router` | Smart router status and history |
-| `POST /debug/switch` | Switch default backend |
-| `POST /debug/compare` | Compare responses from all backends |
-| `GET /debug/history` | Query MongoDB stored requests |
-| `GET /debug/history/:id` | Get single stored request |
-| `GET /debug/analytics?days=N` | Time-series analytics |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/debug/health` | GET | Health check with backend status |
+| `/debug/logs` | GET | Recent request logs (`?limit=N&backend=X&status=Y`) |
+| `/debug/stats` | GET | Aggregated statistics |
+| `/debug/tokens` | GET | Token usage by backend |
+| `/debug/models` | GET | Backend status and loaded models |
+| `/debug/config` | GET/POST | View or update runtime config |
+| `/debug/router` | GET/POST | Smart router status, classify, preferences |
+| `/debug/switch` | GET/POST | Switch default backend at runtime |
+| `/debug/compare` | POST | Compare responses from all backends |
+| `/debug/history` | GET | Query MongoDB (`?limit=N&backend=X&from=DATE&to=DATE&userId=X`) |
+| `/debug/history/:id` | GET | Get single stored request |
+| `/debug/analytics` | GET | Time-series analytics (`?days=N`) |
 
-### Metrics
+### Metrics (port 9090)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET :9090/metrics` | Prometheus metrics |
-
-## CLI Commands
-
-Send these as chat messages to control the gateway:
-
-```
-proxy-cli status   - Show gateway status and backend health
-proxy-cli models   - List backends with loaded models
-proxy-cli use X    - Switch default backend to X
-proxy-cli smart    - Toggle smart routing on/off
-proxy-cli logs N   - Show last N requests
-proxy-cli tokens   - Show token usage statistics
-proxy-cli help     - Show all commands
-```
+| Metric | Type | Description |
+|--------|------|-------------|
+| `llm_proxy_requests_total` | counter | Total requests |
+| `llm_proxy_errors_total` | counter | Total errors |
+| `llm_proxy_latency_avg_ms` | gauge | Average latency |
+| `llm_proxy_requests_by_backend` | counter | Requests per backend |
+| `llm_proxy_requests_by_status` | counter | Requests by HTTP status |
+| `llm_proxy_tokens_input_total` | counter | Total input tokens |
+| `llm_proxy_tokens_output_total` | counter | Total output tokens |
+| `llm_proxy_tokens_by_backend_input` | counter | Input tokens per backend |
+| `llm_proxy_tokens_by_backend_output` | counter | Output tokens per backend |
 
 ## MongoDB Storage
 
@@ -457,7 +332,7 @@ When enabled, all requests are logged to MongoDB with:
 - **Timing**: Start time, backend latency, total time
 - **Tokens**: Input/output token counts
 - **Privacy controls**: Optionally redact queries/responses
-- **Auto-cleanup**: TTL index for automatic deletion after N days
+- **Retention**: Configurable TTL index (set `days: 0` for unlimited)
 
 ### Query Examples
 
@@ -475,95 +350,38 @@ curl "http://localhost:8080/debug/history?from=2024-01-01&to=2024-01-31"
 curl "http://localhost:8080/debug/analytics?days=7"
 ```
 
-## Dashboard
+## Smart Routing (optional)
 
-Access the web dashboard at `http://localhost:8080/`:
+When enabled, the gateway classifies queries and routes to the best backend using:
 
-- **Overview** - Total requests, success rate, average latency
-- **Backend Status** - Health, loaded models, response times
-- **Controls** - Switch backends, toggle smart routing
-- **Request Log** - Recent requests with full details
-- **Categories** - Query classification distribution
-- **Token Usage** - Per-backend token consumption
-- **Tool Calls** - Tool usage statistics
+1. **Quick Classification** - Regex-based pattern matching (greetings, code, weather, etc.)
+2. **LLM Classification** - Uses a fast local model for ambiguous queries
+3. **User Preferences** - Per-user overrides
 
-## Request Flow
+Disabled by default. Enable via config: `"smartRouter": {"enabled": true, ...}`.
+
+## CLI Commands
+
+Send these as chat messages to control the gateway:
 
 ```
-Client Request
-      │
-      ▼
-┌─────────────────────┐
-│ Parse Request Body  │
-│ Detect API Format   │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐     ┌──────────────┐
-│   Smart Router      │────▶│Quick Classify│ (regex)
-│   Classify Query    │     └──────────────┘
-└─────────────────────┘            │
-      │                            ▼
-      │                    ┌──────────────┐
-      │◀───────────────────│LLM Classify  │ (if ambiguous)
-      │                    └──────────────┘
-      ▼
-┌─────────────────────┐
-│ Select Backend      │
-│ (based on category) │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐
-│ Tool Injection      │ (for local backends)
-│ [web_search,        │
-│  get_current_time,  │
-│  calculator]        │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐
-│ Format Conversion   │
-│ (if needed)         │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐
-│ Proxy to Backend    │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐
-│ Tool Execution Loop │ (if model called tools)
-│ (max 3 rounds)      │
-└─────────────────────┘
-      │
-      ▼
-┌─────────────────────┐
-│ Convert Response    │
-│ Store in MongoDB    │
-│ Return to Client    │
-└─────────────────────┘
+proxy-cli status   - Show gateway status and backend health
+proxy-cli models   - List backends with loaded models
+proxy-cli use X    - Switch default backend to X
+proxy-cli smart    - Toggle smart routing on/off
+proxy-cli logs N   - Show last N requests
+proxy-cli tokens   - Show token usage statistics
+proxy-cli help     - Show all commands
 ```
 
 ## Development
 
-### Running Tests
-
-```bash
-# Direct tool calling test (bypasses gateway)
-node test-direct-tools.js --host localhost --port 8001
-
-# Test all tool-calling models
-./test-all-tool-models.sh
-
-# Run benchmarks
-node benchmark-tool-calling.js
-```
-
 ### Building Docker Image
 
+The image is automatically built and pushed via GitHub Actions on push to `main`.
+
 ```bash
+# Manual build
 docker build -t llm-gateway .
 docker push ghcr.io/apellegr/llm-gateway:latest
 ```
