@@ -381,6 +381,8 @@ proxy-cli help     - Show all commands
 
 ## Dashboard
 
+![Dashboard](docs/dashboard.png)
+
 The gateway includes a built-in real-time dashboard accessible at `/dashboard/`. It provides:
 
 - **Overview** — total requests, success rate, average latency
