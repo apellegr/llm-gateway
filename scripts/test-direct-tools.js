@@ -13,7 +13,7 @@ const http = require('http');
 
 // Configuration
 const config = {
-  host: process.argv.includes('--host') ? process.argv[process.argv.indexOf('--host') + 1] : 'localai.treehouse',
+  host: process.argv.includes('--host') ? process.argv[process.argv.indexOf('--host') + 1] : 'localhost',
   port: process.argv.includes('--port') ? parseInt(process.argv[process.argv.indexOf('--port') + 1]) : 8003,
 };
 

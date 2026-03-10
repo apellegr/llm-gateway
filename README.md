@@ -1,6 +1,11 @@
 # LLM Gateway
 
-LLM routing proxy with multi-backend support, tool calling, format conversion, and request logging.
+[![Build](https://github.com/apellegr/llm-gateway/actions/workflows/docker.yml/badge.svg)](https://github.com/apellegr/llm-gateway/actions/workflows/docker.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org)
+[![Docker](https://img.shields.io/badge/Docker-ghcr.io-blue.svg)](https://github.com/apellegr/llm-gateway/pkgs/container/llm-gateway)
+
+A lightweight LLM routing proxy with multi-backend support, tool calling, format conversion, and a real-time dashboard. Zero framework dependencies — just Node.js and a single `index.js`.
 
 ## Architecture
 
@@ -374,6 +379,19 @@ proxy-cli tokens   - Show token usage statistics
 proxy-cli help     - Show all commands
 ```
 
+## Dashboard
+
+The gateway includes a built-in real-time dashboard accessible at `/dashboard/`. It provides:
+
+- **Overview** — total requests, success rate, average latency
+- **Token Usage** — input/output token tracking with charts by backend and over time
+- **Backend Status** — live health monitoring for all configured backends
+- **Controls** — switch backends and toggle smart routing at runtime
+- **Recent Requests** — filterable request log with detailed modal (request, response, timing, routing)
+- **Performance** — per-backend request counts, latency, and error rates
+
+No additional setup required — the dashboard is served automatically when the gateway starts.
+
 ## Project Structure
 
 ```
@@ -382,20 +400,13 @@ llm-gateway/
 ├── package.json
 ├── config.example.json   # Example configuration
 ├── Dockerfile
-├── public/               # Dashboard static files
-├── docs/                 # Additional documentation
+├── public/               # Dashboard (HTML/CSS/JS)
+├── docs/                 # Documentation and roadmap
 ├── scripts/              # Test and benchmark scripts
 │   ├── benchmark-*.sh/js # Model quality and tool-calling benchmarks
 │   ├── test-*.sh/js      # Gateway and tool integration tests
 │   ├── compare-quality.js# Side-by-side local vs Anthropic comparison
 │   └── test-prompts.txt  # 1000 categorized test prompts
-├── results/              # Benchmark and comparison results
-│   ├── benchmark-*.json  # Per-model quality benchmark data
-│   ├── tool-calling-*.json # Tool-calling benchmark data
-│   ├── quality-comparison*.json # Local vs Anthropic comparisons
-│   ├── BENCHMARK_REPORT.md
-│   ├── TOOL_CALLING_REPORT.md
-│   └── summary.csv
 └── .github/workflows/    # CI/CD (Docker image build + push)
 ```
 

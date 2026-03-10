@@ -2,5 +2,22 @@ node_modules/
 config.json
 router-history.json
 *.log
+*.pid
 .env
+.env.local
 .DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+build/
+
+# Benchmark results (generated data)
+results/

@@ -3,18 +3,19 @@
 
 MODEL_PATH="$1"
 CTX_SIZE="${2:-8192}"
-PORT=8003
-REMOTE_HOST="localai.treehouse"
+PORT="${PORT:-8003}"
+REMOTE_HOST="${REMOTE_HOST:-localhost}"
+MODELS_DIR="${MODELS_DIR:-/path/to/models}"
 
 if [ -z "$MODEL_PATH" ]; then
     echo "Usage: $0 <model-path> [ctx-size]"
     echo ""
     echo "Available models:"
-    ssh "$REMOTE_HOST" "find /home/apellegr/Strix-Halo-Models/models -name '*.gguf' -type f" | sed 's|/home/apellegr/Strix-Halo-Models/models/||' | sort
+    ssh "$REMOTE_HOST" "find $MODELS_DIR -name '*.gguf' -type f" | sed 's|$MODELS_DIR/||' | sort
     exit 1
 fi
 
-MODEL_FILE=$(ssh "$REMOTE_HOST" "find /home/apellegr/Strix-Halo-Models/models/$MODEL_PATH -name '*.gguf' -type f 2>/dev/null | head -1")
+MODEL_FILE=$(ssh "$REMOTE_HOST" "find $MODELS_DIR/$MODEL_PATH -name '*.gguf' -type f 2>/dev/null | head -1")
 
 if [ -z "$MODEL_FILE" ]; then
     echo "Error: Model not found at $MODEL_PATH"
@@ -30,8 +31,7 @@ ssh "$REMOTE_HOST" "pkill -f 'llama-server.*--port $PORT' 2>/dev/null || true"
 sleep 2
 
 # Start new (using distrobox for Vulkan/AMD GPU support)
-ssh "$REMOTE_HOST" "nohup /home/apellegr/.local/bin/distrobox enter llama-vulkan-radv -- \
-    /usr/bin/llama-server \
+ssh "$REMOTE_HOST" "nohup ${LLAMA_SERVER:-llama-server} \
     -m '$MODEL_FILE' \
     -c $CTX_SIZE \
     -ngl 999 \

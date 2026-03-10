@@ -6,10 +6,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-MODELS_DIR="/home/apellegr/Strix-Halo-Models/models"
+MODELS_DIR="${MODELS_DIR:-/path/to/models}"
 RESULTS_DIR="$REPO_DIR/results"
 GATEWAY_URL="http://localhost:28080"
-REMOTE_HOST="localai.treehouse"
+REMOTE_HOST="${REMOTE_HOST:-localhost}"
 TEST_PORT=8003  # We'll use the concierge port for testing
 NUM_PROMPTS=20  # Number of random prompts per model
 
@@ -104,7 +104,7 @@ start_model() {
     log "Model file: $full_path"
 
     # Start the server
-    ssh "$REMOTE_HOST" "nohup /usr/bin/llama-server \
+    ssh "$REMOTE_HOST" "nohup ${LLAMA_SERVER:-llama-server} \
         -m '$full_path' \
         -c $ctx_size \
         -ngl 999 \

@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "test": "node scripts/test-tier1-tools.js",
+    "test:gateway": "node scripts/test-gateway.js --limit 20",
+    "test:tools": "bash scripts/test-tier1-tools.sh"
   },
   "keywords": [
     "llm",

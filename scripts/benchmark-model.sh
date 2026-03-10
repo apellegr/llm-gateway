@@ -9,8 +9,8 @@ NUM_PROMPTS="${3:-15}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REMOTE_HOST="localai.treehouse"
-MODELS_BASE="/home/apellegr/Strix-Halo-Models/models"
+REMOTE_HOST="${REMOTE_HOST:-localhost}"
+MODELS_BASE="${MODELS_DIR:-/path/to/models}"
 RESULTS_DIR="$REPO_DIR/results"
 GATEWAY_URL="http://localhost:28080"
 

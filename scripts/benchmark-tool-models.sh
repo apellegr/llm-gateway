@@ -3,7 +3,7 @@
 # Benchmark Tool-Calling Models
 #
 # This script tests each tool-calling optimized model for function calling capability.
-# It updates the concierge config on localai.treehouse, restarts the service,
+# It updates the concierge config on the remote host, restarts the service,
 # and runs the benchmark against the gateway.
 #
 
@@ -12,19 +12,19 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-LOCALAI_HOST="localai.treehouse"
-GATEWAY_URL="http://localhost:28080"
-CONFIG_FILE="/home/apellegr/.config/llama-server/concierge.env"
+LOCALAI_HOST="${REMOTE_HOST:-localhost}"
+GATEWAY_URL="${GATEWAY_URL:-http://localhost:28080}"
+CONFIG_FILE="${CONFIG_FILE:-\$HOME/.config/llama-server/concierge.env}"
 RESULTS_DIR="$REPO_DIR/results"
-DISTROBOX_CMD="/home/apellegr/.local/bin/distrobox enter llama-vulkan-radv --"
+DISTROBOX_CMD="${DISTROBOX_CMD:-}"
 
 # Model configurations
 declare -A MODELS
-MODELS["xLAM-2-8b"]="/home/apellegr/Strix-Halo-Models/models/tool-calling/xLAM-2-8b/Llama-xLAM-2-8B-fc-r-Q5_K_M.gguf"
-MODELS["mistral-nemo-12b"]="/home/apellegr/Strix-Halo-Models/models/tool-calling/mistral-nemo-12b/Mistral-Nemo-Instruct-2407-Q5_K_M.gguf"
-MODELS["functionary-v3.2"]="/home/apellegr/Strix-Halo-Models/models/tool-calling/functionary-v3.2/functionary-small-v3.2-Q5_K_M.gguf"
-MODELS["glm-4.7-flash"]="/home/apellegr/Strix-Halo-Models/models/tool-calling/glm-4.7-flash/GLM-4.7-Flash-Q4_K_M.gguf"
-MODELS["hermes-3-70b"]="/home/apellegr/Strix-Halo-Models/models/tool-calling/hermes-3-70b/Hermes-3-Llama-3.1-70B-Q4_K_M.gguf"
+MODELS["xLAM-2-8b"]="${MODELS_DIR:-/path/to/models}/tool-calling/xLAM-2-8b/Llama-xLAM-2-8B-fc-r-Q5_K_M.gguf"
+MODELS["mistral-nemo-12b"]="${MODELS_DIR:-/path/to/models}/tool-calling/mistral-nemo-12b/Mistral-Nemo-Instruct-2407-Q5_K_M.gguf"
+MODELS["functionary-v3.2"]="${MODELS_DIR:-/path/to/models}/tool-calling/functionary-v3.2/functionary-small-v3.2-Q5_K_M.gguf"
+MODELS["glm-4.7-flash"]="${MODELS_DIR:-/path/to/models}/tool-calling/glm-4.7-flash/GLM-4.7-Flash-Q4_K_M.gguf"
+MODELS["hermes-3-70b"]="${MODELS_DIR:-/path/to/models}/tool-calling/hermes-3-70b/Hermes-3-Llama-3.1-70B-Q4_K_M.gguf"
 
 # Colors
 RED='\033[0;31m'
