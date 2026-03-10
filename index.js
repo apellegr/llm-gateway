@@ -3697,7 +3697,7 @@ async function handleProxyRequest(req, res, body) {
     timestamp: new Date().toISOString(),
     layer: 'proxy',
     direction: 'request',
-    source: req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'clawdbot',
+    source: req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown',
     endpoint: req.url,
     method: req.method,
     request: {
@@ -3806,8 +3806,8 @@ async function handleProxyRequest(req, res, body) {
           requestLog.clientToolsStripped = strippedCount;
         }
 
-        // Route requests with tools to Anthropic (local backends reject clawdbot's tool format)
-        // Clawdbot's tools use complex schemas that llama.cpp doesn't support
+        // Route requests with client-provided tools to Anthropic (local backends may reject complex tool schemas)
+        // Client tools with complex schemas may not be supported by llama.cpp
         if (requestAlreadyHasTools && backend !== 'anthropic') {
           log('info', `Routing to Anthropic - request has ${parsedRequestBody.tools.length} tools`, { requestId });
           backend = 'anthropic';
@@ -3951,7 +3951,7 @@ async function handleProxyRequest(req, res, body) {
 
     // Inject gateway tools for local and Anthropic backends (let the model decide when to use them)
     // This enables tool calling for weather, news, calculations, etc.
-    // Merge with client tools if present (e.g., clawdbot's read/write/exec)
+    // Merge with client tools if present (e.g., client-provided read/write/exec tools)
     if (isLocalBackend || backend === 'anthropic') {
       // For simple queries (conversation, realtime), strip client tools to reduce
       // prompt size (~22s savings at 153 tok/s). The model can still see results
@@ -4234,7 +4234,7 @@ async function handleProxyRequest(req, res, body) {
 
         // Execute tool calls and continue conversation
         if (toolCalls.length > 0) {
-          // Filter to only gateway-known tools — skip client tools (e.g. clawdbot's read/write/exec)
+          // Filter to only gateway-known tools — skip client-provided tools
           const gatewayToolCalls = toolCalls.filter(tc => {
             const tcName = tc.function?.name || tc.name;
             return GATEWAY_TOOLS.has(tcName);
@@ -5034,7 +5034,7 @@ function formatCLIHelp() {
 ${Object.keys(config.backends).join(', ')}
 
 **Dashboard:**
-https://llm-proxy.treehouse/dashboard`;
+http://localhost:${config.proxyPort || 8080}/dashboard`;
 }
 
 // ============================================================================
@@ -5120,7 +5120,7 @@ function handleDebugStats(req, res) {
 // ============================================================================
 
 // Debug endpoint: Query stored request history
-// GET /debug/history?limit=50&backend=anthropic&from=2026-01-01&to=2026-02-01&userId=clawdbot&category=realtime
+// GET /debug/history?limit=50&backend=anthropic&from=2026-01-01&to=2026-02-01&userId=myapp&category=realtime
 async function handleDebugHistory(req, res, query) {
   if (!db) {
     res.writeHead(200, { 'Content-Type': 'application/json' });

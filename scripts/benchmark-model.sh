@@ -105,13 +105,17 @@ echo -e "${CYAN}[4/5]${NC} Running quality comparison..."
 
 # Get API key if not set
 if [ -z "$ANTHROPIC_API_KEY" ]; then
-    export ANTHROPIC_API_KEY=$(kubectl get secret -n treehouse clawdbot-anthropic-key -o jsonpath='{.data.ANTHROPIC_API_KEY}' | base64 -d)
+    echo -e "${RED}Error: ANTHROPIC_API_KEY not set${NC}"
+    echo "Export ANTHROPIC_API_KEY before running this script."
+    exit 1
 fi
 
-# Ensure port forward
-pkill -f "port-forward.*28080" 2>/dev/null || true
-kubectl port-forward -n treehouse deployment/clawdbot 28080:8080 &>/dev/null &
-sleep 2
+# Ensure gateway is reachable
+if ! curl -sf "$GATEWAY_URL/debug/health" &>/dev/null; then
+    echo -e "${RED}Error: Gateway not reachable at $GATEWAY_URL${NC}"
+    echo "Start the gateway or set GATEWAY_URL to point to a running instance."
+    exit 1
+fi
 
 node "$SCRIPT_DIR/compare-quality.js" \
     -g "$GATEWAY_URL" \

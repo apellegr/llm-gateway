@@ -196,8 +196,8 @@ ${c('cyan', 'Examples:')}
   ${c('dim', '# Random sample of 100 prompts, save results')}
   node test-gateway.js --random 100 --output results.json
 
-  ${c('dim', '# Test against production gateway')}
-  node test-gateway.js -g https://llm-proxy.treehouse --limit 20
+  ${c('dim', '# Test against a remote gateway')}
+  node test-gateway.js -g http://your-gateway:8080 --limit 20
 
   ${c('dim', '# Dry run to see what would be sent')}
   node test-gateway.js --category coding --dry-run

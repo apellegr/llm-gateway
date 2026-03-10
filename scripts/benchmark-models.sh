@@ -167,17 +167,20 @@ echo ""
 
 # Check API key
 if [ -z "$ANTHROPIC_API_KEY" ]; then
-    ANTHROPIC_API_KEY=$(kubectl get secret -n treehouse clawdbot-anthropic-key -o jsonpath='{.data.ANTHROPIC_API_KEY}' | base64 -d)
-    export ANTHROPIC_API_KEY
+    echo -e "${RED}Error: ANTHROPIC_API_KEY not set${NC}"
+    echo "Export ANTHROPIC_API_KEY before running this script."
+    exit 1
 fi
 
 # Initialize summary
 echo "model,local_score,anthropic_score,local_wins,anthropic_wins" > "$RESULTS_DIR/summary.csv"
 
-# Ensure port forward is active
-pkill -f "port-forward.*28080" 2>/dev/null || true
-kubectl port-forward -n treehouse deployment/clawdbot 28080:8080 &>/dev/null &
-sleep 3
+# Ensure gateway is reachable
+if ! curl -sf "${GATEWAY_URL:-http://localhost:28080}/debug/health" &>/dev/null; then
+    echo -e "${RED}Error: Gateway not reachable at ${GATEWAY_URL:-http://localhost:28080}${NC}"
+    echo "Start the gateway or set GATEWAY_URL to point to a running instance."
+    exit 1
+fi
 
 log "Starting benchmark of ${#MODELS[@]} models..."
 echo ""

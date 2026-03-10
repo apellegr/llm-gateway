@@ -78,13 +78,12 @@ wait_for_server() {
     return 1
 }
 
-# Check if port-forward is active
+# Check if gateway is reachable
 setup_port_forward() {
     if ! nc -z localhost 28080 2>/dev/null; then
-        log "Setting up port-forward to gateway..."
-        pkill -f "port-forward.*28080" 2>/dev/null || true
-        kubectl port-forward -n treehouse svc/llm-gateway 28080:8080 &
-        sleep 3
+        log "Error: Gateway not reachable on port 28080"
+        log "Start the gateway or set up port forwarding manually."
+        return 1
     fi
 }
 

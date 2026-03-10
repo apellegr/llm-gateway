@@ -101,7 +101,7 @@ Create a `config.json` file:
 {
   "mode": "passthrough",
   "backends": {
-    "local": "http://192.168.1.214:8001",
+    "local": "http://localhost:8001",
     "anthropic": "https://api.anthropic.com"
   },
   "defaultBackend": "local",
