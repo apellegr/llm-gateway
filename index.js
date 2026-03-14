@@ -3514,7 +3514,7 @@ function chatCompletionsToResponses(response, model, isHermes = false) {
 }
 
 // Make HTTP request
-function makeRequest(url, options, body, isStreaming = false, timeoutMs = 300000) {
+function makeRequest(url, options, body, isStreaming = false, timeoutMs = 600000) {
   return new Promise((resolve, reject) => {
     const isHttps = url.startsWith('https');
     const lib = isHttps ? https : http;
